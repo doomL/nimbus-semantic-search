@@ -12,6 +12,7 @@ from webdav4.client import Client, ResourceNotFound
 
 from clip_model import encode_image_pil
 from db import count_photos, get_connection, insert_photo, numpy_to_blob, path_exists
+from image_io import load_rgb_image
 from tag_stats import recompute_library_tags
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,6 @@ try:
     register_heif_opener()
 except ImportError:
     logger.warning("pillow-heif not available; HEIC support may be limited")
-
-from PIL import Image, ImageOps
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
 
@@ -140,10 +139,9 @@ def _encode_and_store(
     filename: str,
 ) -> None:
     buf = _download_to_bytesio(client, webdav_path)
+    data = buf.getvalue()
     try:
-        img = Image.open(buf)
-        img = ImageOps.exif_transpose(img)
-        img = img.convert("RGB")
+        img = load_rgb_image(data, source=webdav_path)
     except Exception as e:
         logger.error("Cannot open image %s: %s", webdav_path, e)
         raise

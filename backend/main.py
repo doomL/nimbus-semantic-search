@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-from PIL import Image, ImageOps
+from PIL import Image
 from webdav4.client import Client
 
 load_dotenv()
@@ -43,6 +43,7 @@ except ImportError:
 
 from clip_model import get_clip  # noqa: E402  — load env before heavy imports
 from db import count_photos, get_connection, init_db  # noqa: E402
+from image_io import load_rgb_image  # noqa: E402
 from indexer import run_index_job  # noqa: E402
 from search import search_photos  # noqa: E402
 from tag_stats import get_popular_tags, recompute_library_tags  # noqa: E402
@@ -356,11 +357,8 @@ def tags_recompute() -> JSONResponse:
     return JSONResponse({"started": True})
 
 
-def _thumb_bytes(data: bytes, max_px: int = 300) -> bytes:
-    buf = BytesIO(data)
-    img = Image.open(buf)
-    img = ImageOps.exif_transpose(img)
-    img = img.convert("RGB")
+def _thumb_bytes(data: bytes, max_px: int = 300, *, source: str = "") -> bytes:
+    img = load_rgb_image(data, source=source)
     img.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
     out = BytesIO()
     img.save(out, format="JPEG", quality=85)
@@ -389,7 +387,7 @@ def photo_proxy(
     data = buf.getvalue()
     if thumb:
         try:
-            data = _thumb_bytes(data)
+            data = _thumb_bytes(data, source=raw_path)
         except Exception as e:
             logger.warning("Thumbnail failed for %s: %s", raw_path, e)
             raise HTTPException(400, "Could not create thumbnail") from e
