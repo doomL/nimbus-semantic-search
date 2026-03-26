@@ -1,3 +1,5 @@
+name: nimbus
+
 services:
   app:
     build:

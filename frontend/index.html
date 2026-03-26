@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0c0e12" id="metaTheme" />
-  <meta name="description" content="Nimbus — pCloud WebDAV semantic photo search (self-hosted). Natural language search with OpenCLIP + sqlite-vec; works with any WebDAV library." />
-  <meta name="keywords" content="pcloud, webdav, semantic search, clip, photo search, self-hosted, sqlite-vec, openclip" />
-  <title>Nimbus — pCloud &amp; WebDAV semantic photo search</title>
+  <meta name="description" content="Nimbus — self-hosted semantic photo search over WebDAV (e.g. pCloud). Natural-language queries; vector index in SQLite. Not affiliated with pCloud AG." />
+  <meta name="keywords" content="nimbus, webdav, semantic search, photo search, self-hosted, sqlite-vec, openclip, pcloud" />
+  <title>Nimbus — semantic photo search</title>
   <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -615,7 +615,7 @@
     </header>
 
     <section class="hero">
-      <p class="hero-kicker">Self-hosted · OpenCLIP · sqlite-vec</p>
+      <p class="hero-kicker">Self-hosted · WebDAV · sqlite-vec</p>
       <h1>Find photos with words</h1>
       <p>Describe what you remember — a mood, a place, an object. Files stay on your WebDAV server; this app only keeps vectors and paths in a local database.</p>
     </section>
@@ -653,7 +653,7 @@
       <div id="libraryTagsBlock">
         <div class="section-label">Common in your library</div>
         <p class="hint" id="libraryTagsHint">
-          Estimated from your indexed photos: we match each image to a fixed list of concepts (CLIP), not EXIF or filenames.
+          Estimated from your indexed photos: we match each image to a fixed list of concepts (semantic model), not EXIF or filenames.
         </p>
         <div class="chip-row" id="libraryTags"></div>
         <p class="library-tags-actions">
@@ -678,7 +678,7 @@
     </div>
 
     <footer class="site-footer">
-      <p><strong>Nimbus</strong> — semantic search for a WebDAV photo library. Not affiliated with pCloud. MIT licensed.</p>
+      <p><strong>Nimbus</strong> — semantic search for a WebDAV photo library. Not affiliated with pCloud AG. MIT licensed.</p>
       <span class="footer-version" id="footerVersion" hidden></span>
     </footer>
   </div>
@@ -759,7 +759,7 @@
         if (tags.length === 0) {
           if (lastIndexedCount === 0) {
             hint.innerHTML =
-              'After you <strong style="color:var(--text)">index photos</strong>, we scan them for common themes. Not EXIF tags — CLIP similarity vs a fixed word list.';
+              'After you <strong style="color:var(--text)">index photos</strong>, we scan them for common themes. Not EXIF tags — similarity vs a fixed word list.';
           } else {
             hint.innerHTML =
               'No tag stats yet. Use <strong style="color:var(--text)">Refresh tag stats</strong> below (can take a minute on large libraries).';
@@ -767,7 +767,7 @@
           return;
         }
         hint.textContent =
-          "These concepts match many of your photos (CLIP vs a fixed prompt list). Click to search.";
+          "These concepts match many of your photos (fixed prompt list). Click to search.";
         tags.forEach((t) => {
           const b = document.createElement("button");
           b.type = "button";
