@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0c0e12" id="metaTheme" />
+  <meta name="description" content="Nimbus — pCloud WebDAV semantic photo search (self-hosted). Natural language search with OpenCLIP + sqlite-vec; works with any WebDAV library." />
+  <meta name="keywords" content="pcloud, webdav, semantic search, clip, photo search, self-hosted, sqlite-vec, openclip" />
+  <title>Nimbus — pCloud &amp; WebDAV semantic photo search</title>
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root[data-theme="dark"] {
+      --bg0: #07080c;
+      --bg1: #0c0e14;
+      --surface: #12151c;
+      --surface2: #181c26;
+      --border: #2a3140;
+      --text: #eef1f7;
+      --muted: #8b95aa;
+      --accent: #2dd4bf;
+      --accent2: #38bdf8;
+      --accent-dim: #2dd4bf22;
+      --danger: #fb7185;
+      --glow1: #1a3d38;
+      --glow2: #1e2a4a;
+      --chip-bg: #1a2030;
+      --chip-border: #334155;
+      --shadow: rgba(0,0,0,.45);
+    }
+    :root[data-theme="light"] {
+      --bg0: #f8fafc;
+      --bg1: #f1f5f9;
+      --surface: #ffffff;
+      --surface2: #f8fafc;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #0d9488;
+      --accent2: #2563eb;
+      --accent-dim: #0d948822;
+      --danger: #e11d48;
+      --glow1: #ccfbf1;
+      --glow2: #dbeafe;
+      --chip-bg: #f1f5f9;
+      --chip-border: #cbd5e1;
+      --shadow: rgba(15, 23, 42, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg1);
+      color: var(--text);
+      background-image:
+        radial-gradient(ellipse 100% 80% at 50% -30%, var(--glow1), transparent 52%),
+        radial-gradient(ellipse 70% 50% at 100% 0%, var(--glow2), transparent 45%),
+        radial-gradient(ellipse 60% 40% at 0% 100%, var(--glow2), transparent 42%);
+      position: relative;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.22;
+      background-image: radial-gradient(rgba(120, 140, 180, 0.22) 1px, transparent 1px);
+      background-size: 5px 5px;
+      mix-blend-mode: soft-light;
+    }
+    :root[data-theme="light"] body::before {
+      opacity: 0.35;
+      background-image: radial-gradient(rgba(100, 116, 139, 0.18) 1px, transparent 1px);
+      mix-blend-mode: multiply;
+    }
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 1.25rem 1.25rem 3rem;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand img {
+      width: 48px;
+      height: 48px;
+      filter: drop-shadow(0 4px 12px var(--shadow));
+    }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    .brand-text strong {
+      font-family: "Syne", sans-serif;
+      font-weight: 800;
+      font-size: 1.35rem;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+    }
+    .brand-text span {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-weight: 600;
+    }
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .theme-toggle:hover {
+      border-color: var(--accent);
+      background: var(--surface2);
+    }
+    .theme-toggle svg {
+      width: 18px;
+      height: 18px;
+      opacity: 0.9;
+    }
+    .hero {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding: 0.5rem 0 0;
+    }
+    .hero-kicker {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      font-weight: 700;
+      color: var(--muted);
+      margin: 0 0 0.65rem;
+      opacity: 0.95;
+    }
+    .hero h1 {
+      font-family: "Syne", sans-serif;
+      font-weight: 800;
+      font-size: clamp(1.65rem, 4vw, 2.15rem);
+      letter-spacing: -0.035em;
+      margin: 0 0 0.65rem;
+      line-height: 1.15;
+      background: linear-gradient(120deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero p {
+      color: var(--muted);
+      font-size: 1.02rem;
+      line-height: 1.55;
+      max-width: 36rem;
+      margin: 0 auto;
+    }
+    .search-row-wrap {
+      margin-bottom: 0.35rem;
+    }
+    .search-hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0 0 1rem 0.15rem;
+      opacity: 0.88;
+    }
+    .search-hint kbd {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72em;
+      padding: 0.12rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      align-items: stretch;
+      margin-bottom: 0;
+    }
+    .search-wrap {
+      flex: 1;
+      min-width: 220px;
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: 0 1px 0 var(--shadow);
+    }
+    .search-wrap:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .search-wrap .search-icon {
+      padding-left: 0.9rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+    }
+    input[type="search"] {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      padding: 0.85rem 0.9rem 0.85rem 0.35rem;
+      outline: none;
+      min-width: 0;
+    }
+    input::placeholder { color: var(--muted); opacity: 0.85; }
+    button.btn {
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: 12px;
+      padding: 0.85rem 1.15rem;
+      font-size: 0.92rem;
+      transition: transform 0.12s, filter 0.15s, box-shadow 0.15s;
+    }
+    button.btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #14b8a6);
+      color: #042f2e;
+      box-shadow: 0 4px 14px var(--accent-dim);
+    }
+    :root[data-theme="light"] .btn-primary {
+      color: #fff;
+      background: linear-gradient(135deg, #0d9488, #2563eb);
+    }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-ghost {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { background: var(--surface2); }
+    .btn-ghost:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .status-panel {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.74rem;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      line-height: 1.65;
+      margin-bottom: 1.75rem;
+    }
+    .status-panel strong { color: var(--text); font-weight: 500; }
+    .status-panel .err { color: var(--danger); }
+    .discover {
+      margin-bottom: 2rem;
+    }
+    .discover h2 {
+      font-family: "Syne", sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.85rem;
+      color: var(--text);
+    }
+    .discover .hint {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin: -0.35rem 0 1rem;
+      line-height: 1.45;
+    }
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.35rem;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 500;
+      background: var(--chip-bg);
+      border: 1px solid var(--chip-border);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, transform 0.1s;
+    }
+    .chip:hover {
+      border-color: var(--accent);
+      background: var(--surface);
+      transform: translateY(-1px);
+    }
+    .chip:active { transform: translateY(0); }
+    @keyframes chipIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .chip-row .chip {
+      animation: chipIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    }
+    .chip-row .chip:nth-child(1) { animation-delay: 0.02s; }
+    .chip-row .chip:nth-child(2) { animation-delay: 0.05s; }
+    .chip-row .chip:nth-child(3) { animation-delay: 0.08s; }
+    .chip-row .chip:nth-child(4) { animation-delay: 0.11s; }
+    .chip-row .chip:nth-child(5) { animation-delay: 0.14s; }
+    .chip-row .chip:nth-child(6) { animation-delay: 0.17s; }
+    .chip-row .chip:nth-child(7) { animation-delay: 0.2s; }
+    .chip-row .chip:nth-child(8) { animation-delay: 0.23s; }
+    .chip-row .chip:nth-child(n+9) { animation-delay: 0.26s; }
+    .chip.recent {
+      border-style: dashed;
+      opacity: 0.95;
+    }
+    .section-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 0.55rem;
+    }
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .results-header h2 {
+      font-family: "Syne", sans-serif;
+      font-size: 1.1rem;
+      margin: 0;
+      font-weight: 700;
+    }
+    .results-header .query {
+      color: var(--accent);
+    }
+    .btn-text {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .btn-text:hover { color: var(--accent); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: border-color 0.15s, box-shadow 0.2s;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+    .card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 12px 28px var(--shadow);
+    }
+    .card a {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+    .thumb {
+      aspect-ratio: 1;
+      background: var(--bg0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .meta {
+      padding: 0.55rem 0.75rem 0.75rem;
+      font-size: 0.76rem;
+      word-break: break-word;
+      color: var(--muted);
+    }
+    .meta .score {
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.2rem;
+      font-size: 0.8rem;
+    }
+    .empty, .error-msg {
+      text-align: center;
+      color: var(--muted);
+      padding: 2.5rem 1rem;
+      font-size: 0.98rem;
+      line-height: 1.5;
+    }
+    .error-msg { color: var(--danger); }
+    .welcome-illus {
+      text-align: center;
+      padding: 2rem 1rem 1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+      max-width: 28rem;
+      margin: 0 auto;
+    }
+    .welcome-illus svg {
+      width: 72px;
+      height: 72px;
+      margin-bottom: 1rem;
+      opacity: 0.85;
+    }
+    dialog.lightbox {
+      max-width: 96vw;
+      max-height: 96vh;
+      border: none;
+      padding: 0;
+      background: var(--bg0);
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0,0,0,.55);
+    }
+    dialog.lightbox::backdrop {
+      background: rgba(7, 8, 12, 0.72);
+    }
+    :root[data-theme="light"] dialog.lightbox::backdrop {
+      background: rgba(15, 23, 42, 0.45);
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .lightbox-close:hover { background: var(--surface2); }
+    #lightboxImg {
+      max-width: 92vw;
+      max-height: 88vh;
+      display: block;
+      vertical-align: middle;
+    }
+    .hidden { display: none !important; }
+    .btn:focus-visible,
+    .chip:focus-visible,
+    .theme-toggle:focus-visible,
+    .btn-text:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .site-footer {
+      margin-top: 3rem;
+      padding-top: 1.75rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.55;
+      max-width: 32rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .site-footer strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      z-index: 100;
+      padding: 0.65rem 1rem;
+      background: var(--accent);
+      color: #042f2e;
+      font-weight: 700;
+      border-radius: 8px;
+      text-decoration: none;
+    }
+    :root[data-theme="light"] .skip-link { color: #fff; }
+    .skip-link:focus {
+      left: 1rem;
+      top: 1rem;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .chip-row .chip { animation: none !important; }
+      .btn:active, .chip:active { transform: none; }
+    }
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+      gap: 1rem;
+    }
+    .skeleton-card {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .skeleton-thumb {
+      aspect-ratio: 1;
+      background: linear-gradient(
+        110deg,
+        var(--surface2) 8%,
+        var(--border) 18%,
+        var(--surface2) 33%
+      );
+      background-size: 200% 100%;
+      animation: sk 1.2s ease-in-out infinite;
+    }
+    @keyframes sk {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton-thumb { animation: none; background: var(--surface2); }
+    }
+    .skeleton-lines {
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .skeleton-lines span {
+      display: block;
+      height: 0.65rem;
+      border-radius: 4px;
+      background: var(--surface2);
+    }
+    .skeleton-lines span:first-child { width: 40%; }
+    .skeleton-lines span:last-child { width: 85%; }
+    .footer-version {
+      display: block;
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      opacity: 0.75;
+    }
+    .tag-count {
+      font-weight: 600;
+      font-size: 0.82em;
+      opacity: 0.75;
+    }
+    .library-tags-actions {
+      margin-top: 0.35rem;
+      margin-bottom: 0.25rem;
+    }
+    #libraryTagsBlock {
+      margin-bottom: 1.75rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="wrap" id="main">
+    <header class="topbar">
+      <a class="brand" href="/" id="brandLink">
+        <img src="/assets/logo.svg" width="48" height="48" alt="" />
+        <div class="brand-text">
+          <strong>Nimbus</strong>
+          <span>Semantic search</span>
+        </div>
+      </a>
+      <button type="button" class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">
+        <span id="themeIcon"></span>
+        <span id="themeLabel">Dark</span>
+      </button>
+    </header>
+
+    <section class="hero">
+      <p class="hero-kicker">Self-hosted · OpenCLIP · sqlite-vec</p>
+      <h1>Find photos with words</h1>
+      <p>Describe what you remember — a mood, a place, an object. Files stay on your WebDAV server; this app only keeps vectors and paths in a local database.</p>
+    </section>
+
+    <div class="search-row-wrap">
+      <div class="row">
+        <div class="search-wrap">
+          <span class="search-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+          </span>
+          <input type="search" id="q" maxlength="500" placeholder="e.g. golden hour portrait, pasta close-up, snowy mountains…" autocomplete="off" aria-label="Search query" enterkeyhint="search" />
+        </div>
+        <button type="button" class="btn btn-primary" id="searchBtn">Search</button>
+        <button type="button" class="btn btn-ghost" id="indexBtn">Index photos</button>
+      </div>
+      <p class="search-hint">Tip: press <kbd>/</kbd> to jump here</p>
+    </div>
+
+    <div class="status-panel" id="statusPanel">Loading status…</div>
+
+    <div id="welcomeBlock" class="welcome-illus">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="32" cy="32" r="28" stroke="url(#wg)" stroke-width="2" opacity="0.35"/>
+        <path d="M20 38c4-8 10-12 18-12s14 4 18 12" stroke="url(#wg)" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="26" cy="24" r="3" fill="currentColor" opacity="0.5"/>
+        <circle cx="38" cy="22" r="2" fill="currentColor" opacity="0.35"/>
+        <defs>
+          <linearGradient id="wg" x1="8" y1="8" x2="56" y2="56"><stop stop-color="#2dd4bf"/><stop offset="1" stop-color="#818cf8"/></linearGradient>
+        </defs>
+      </svg>
+      <p>Index your library once, then search by meaning. Pick a suggestion or write your own — the model understands scenes, not filenames.</p>
+    </div>
+
+    <section class="discover" id="discoverSection">
+      <div id="libraryTagsBlock">
+        <div class="section-label">Common in your library</div>
+        <p class="hint" id="libraryTagsHint">
+          Estimated from your indexed photos: we match each image to a fixed list of concepts (CLIP), not EXIF or filenames.
+        </p>
+        <div class="chip-row" id="libraryTags"></div>
+        <p class="library-tags-actions">
+          <button type="button" class="btn-text" id="refreshTagsBtn">Refresh tag stats</button>
+        </p>
+      </div>
+      <div class="section-label">Popular searches</div>
+      <p class="hint">Try mixing <strong style="color:var(--text)">subject + lighting + style</strong> — e.g. “candid street photography at dusk”.</p>
+      <div class="chip-row" id="popularChips"></div>
+      <div id="recentBlock" class="hidden">
+        <div class="section-label">Recent</div>
+        <div class="chip-row" id="recentChips"></div>
+      </div>
+    </section>
+
+    <div id="resultsBlock" class="hidden">
+      <div class="results-header">
+        <h2>Results for <span class="query" id="resultsQuery"></span></h2>
+        <button type="button" class="btn-text" id="clearResults">Clear results</button>
+      </div>
+      <div id="results" role="region" aria-live="polite" aria-label="Search results"></div>
+    </div>
+
+    <footer class="site-footer">
+      <p><strong>Nimbus</strong> — semantic search for a WebDAV photo library. Not affiliated with pCloud. MIT licensed.</p>
+      <span class="footer-version" id="footerVersion" hidden></span>
+    </footer>
+  </div>
+
+  <dialog id="lightbox" class="lightbox">
+    <form method="dialog" style="margin:0;position:relative;">
+      <button type="submit" class="lightbox-close">Close</button>
+      <img id="lightboxImg" alt="" />
+    </form>
+  </dialog>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const THEME_KEY = "nimbus-theme";
+    const RECENT_KEY = "nimbus-recent";
+    /** Pre-Nimbus localStorage keys (base64-encoded so old sessions still migrate). */
+    const LEGACY_THEME = atob("cGNsb3VkLWNsaXAtdGhlbWU=");
+    const LEGACY_RECENT = atob("cGNsb3VkLWNsaXAtcmVjZW50");
+    const MAX_RECENT = 10;
+
+    function migrateStorage() {
+      if (!localStorage.getItem(THEME_KEY) && localStorage.getItem(LEGACY_THEME)) {
+        localStorage.setItem(THEME_KEY, localStorage.getItem(LEGACY_THEME));
+      }
+      if (!localStorage.getItem(RECENT_KEY) && localStorage.getItem(LEGACY_RECENT)) {
+        localStorage.setItem(RECENT_KEY, localStorage.getItem(LEGACY_RECENT));
+      }
+    }
+
+    const POPULAR_SEARCHES = [
+      "sunset over the ocean",
+      "people smiling at camera",
+      "coffee and laptop",
+      "mountain landscape",
+      "birthday cake candles",
+      "dog running on grass",
+      "city lights at night",
+      "baby close-up",
+      "food on a wooden table",
+      "snow and trees",
+      "beach vacation",
+      "wedding dress",
+      "car dashboard road trip",
+      "cat sleeping",
+      "architecture symmetry",
+      "concert crowd lights",
+    ];
+
+    function getRecent() {
+      try {
+        const raw = localStorage.getItem(RECENT_KEY);
+        const a = raw ? JSON.parse(raw) : [];
+        return Array.isArray(a) ? a.filter((x) => typeof x === "string").slice(0, MAX_RECENT) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveRecent(q) {
+      const t = q.trim();
+      if (!t) return;
+      let list = getRecent().filter((x) => x.toLowerCase() !== t.toLowerCase());
+      list.unshift(t);
+      list = list.slice(0, MAX_RECENT);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    }
+
+    let lastIndexedCount = 0;
+
+    async function loadLibraryTags() {
+      const row = $("libraryTags");
+      const hint = $("libraryTagsHint");
+      try {
+        const r = await fetch("/tags/popular");
+        const data = await r.json();
+        const tags = data.tags || [];
+        row.innerHTML = "";
+        if (tags.length === 0) {
+          if (lastIndexedCount === 0) {
+            hint.innerHTML =
+              'After you <strong style="color:var(--text)">index photos</strong>, we scan them for common themes. Not EXIF tags — CLIP similarity vs a fixed word list.';
+          } else {
+            hint.innerHTML =
+              'No tag stats yet. Use <strong style="color:var(--text)">Refresh tag stats</strong> below (can take a minute on large libraries).';
+          }
+          return;
+        }
+        hint.textContent =
+          "These concepts match many of your photos (CLIP vs a fixed prompt list). Click to search.";
+        tags.forEach((t) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "chip";
+          b.innerHTML =
+            escapeHtml(t.tag) +
+            ' <span class="tag-count">(' +
+            t.count +
+            ")</span>";
+          b.addEventListener("click", () => {
+            $("q").value = t.suggest || t.tag;
+            runSearch();
+          });
+          row.appendChild(b);
+        });
+      } catch (e) {
+        row.innerHTML = "";
+        hint.textContent = "Could not load library tags.";
+      }
+    }
+
+    function renderPopular() {
+      const el = $("popularChips");
+      el.innerHTML = "";
+      POPULAR_SEARCHES.forEach((text) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip";
+        b.textContent = text;
+        b.addEventListener("click", () => {
+          $("q").value = text;
+          runSearch();
+        });
+        el.appendChild(b);
+      });
+    }
+
+    function renderRecent() {
+      const list = getRecent();
+      const block = $("recentBlock");
+      const el = $("recentChips");
+      el.innerHTML = "";
+      if (list.length === 0) {
+        block.classList.add("hidden");
+        return;
+      }
+      block.classList.remove("hidden");
+      list.forEach((text) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip recent";
+        b.textContent = text;
+        b.addEventListener("click", () => {
+          $("q").value = text;
+          runSearch();
+        });
+        el.appendChild(b);
+      });
+    }
+
+    function setTheme(mode) {
+      const root = document.documentElement;
+      root.dataset.theme = mode;
+      const meta = $("metaTheme");
+      if (mode === "light") {
+        meta.setAttribute("content", "#f8fafc");
+        $("themeLabel").textContent = "Light";
+        $("themeIcon").innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
+      } else {
+        meta.setAttribute("content", "#0c0e12");
+        $("themeLabel").textContent = "Dark";
+        $("themeIcon").innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 8.45 8.45 0 0 0 12 21a8.5 8.5 0 0 0 9-6.5z"/></svg>';
+      }
+      localStorage.setItem(THEME_KEY, mode);
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "light" || saved === "dark") {
+        setTheme(saved);
+        return;
+      }
+      const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+      setTheme(prefersLight ? "light" : "dark");
+    }
+
+    $("themeBtn").addEventListener("click", () => {
+      const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+      setTheme(next);
+    });
+
+    async function refreshStatus() {
+      const el = $("statusPanel");
+      try {
+        const r = await fetch("/index/status");
+        const s = await r.json();
+        lastIndexedCount = typeof s.indexed === "number" ? s.indexed : 0;
+        const parts = [
+          "<strong>Indexed</strong>: " + s.indexed,
+          "<strong>Files (last run)</strong>: " + s.total,
+          "<strong>+This run</strong>: " + s.indexed_this_run,
+          "<strong>Skipped</strong>: " + s.skipped,
+          "<strong>Errors</strong>: " + s.errors,
+          "<strong>Indexing</strong>: " + (s.in_progress ? "yes" : "no"),
+        ];
+        if (s.last_error) {
+          parts.push('<span class="err">Last error: ' + escapeHtml(s.last_error) + "</span>");
+        }
+        el.innerHTML = parts.join(" &nbsp;|&nbsp; ");
+        $("indexBtn").disabled = !!s.in_progress;
+        loadHealthFooter();
+        loadLibraryTags();
+      } catch (e) {
+        el.textContent = "Could not load status.";
+      }
+    }
+
+    function escapeHtml(t) {
+      const d = document.createElement("div");
+      d.textContent = t;
+      return d.innerHTML;
+    }
+
+    function photoUrl(path, thumb) {
+      const u = new URL("/photo", window.location.origin);
+      u.searchParams.set("path", path);
+      if (thumb) u.searchParams.set("thumb", "true");
+      return u.toString();
+    }
+
+    function skeletonResultsHtml() {
+      let cards = "";
+      for (let i = 0; i < 8; i++) {
+        cards +=
+          '<div class="skeleton-card"><div class="skeleton-thumb" aria-hidden="true"></div><div class="skeleton-lines"><span></span><span></span></div></div>';
+      }
+      return (
+        '<div class="skeleton-grid" aria-busy="true" aria-label="Loading results">' +
+        cards +
+        "</div>"
+      );
+    }
+
+    async function loadHealthFooter() {
+      const el = $("footerVersion");
+      try {
+        const r = await fetch("/health");
+        const h = await r.json();
+        if (h.version) {
+          let t = "API v" + h.version;
+          if (typeof h.indexed === "number") t += " · " + h.indexed + " photos indexed";
+          if (h.database !== "ok") t += " · DB: " + (h.database || "?");
+          el.textContent = t;
+          el.hidden = false;
+        }
+      } catch (e) {
+        el.hidden = true;
+      }
+    }
+
+    function runSearch() {
+      const q = $("q").value.trim();
+      const container = $("results");
+      if (!q) {
+        $("resultsBlock").classList.add("hidden");
+        $("welcomeBlock").classList.remove("hidden");
+        $("discoverSection").classList.remove("hidden");
+        container.innerHTML = "";
+        return;
+      }
+      $("welcomeBlock").classList.add("hidden");
+      $("discoverSection").classList.remove("hidden");
+      $("resultsBlock").classList.remove("hidden");
+      $("resultsQuery").textContent = '"' + q + '"';
+      container.innerHTML = skeletonResultsHtml();
+      saveRecent(q);
+      renderRecent();
+
+      fetch("/search?q=" + encodeURIComponent(q))
+        .then((r) => {
+          if (r.status === 422) {
+            container.innerHTML =
+              '<p class="error-msg">That search is too long. Try shorter text (max 500 characters).</p>';
+            return null;
+          }
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
+        .then((data) => {
+          if (!data) return;
+          if (!data.results || data.results.length === 0) {
+            container.innerHTML =
+              '<p class="empty">No matches for that phrase. Try another suggestion or re-index if your library is new.</p>';
+            return;
+          }
+          const grid = document.createElement("div");
+          grid.className = "grid";
+          for (const item of data.results) {
+            const card = document.createElement("div");
+            card.className = "card";
+            const scorePct = (item.score * 100).toFixed(1) + "%";
+            const thumbSrc = photoUrl(item.webdav_path, true);
+            const a = document.createElement("a");
+            a.href = "#";
+            a.className = "open-full";
+            a.dataset.path = item.webdav_path;
+            a.innerHTML =
+              '<div class="thumb"><img loading="lazy" alt="" src="' +
+              escapeHtml(thumbSrc) +
+              '" /></div>' +
+              '<div class="meta"><div class="score">' +
+              scorePct +
+              " match</div>" +
+              escapeHtml(item.filename) +
+              "</div>";
+            a.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              $("lightboxImg").src = photoUrl(a.dataset.path, false);
+              $("lightbox").showModal();
+            });
+            card.appendChild(a);
+            grid.appendChild(card);
+          }
+          container.innerHTML = "";
+          container.appendChild(grid);
+        })
+        .catch(() => {
+          container.innerHTML =
+            '<p class="error-msg">Search failed. Is the API running?</p>';
+        });
+    }
+
+    $("searchBtn").addEventListener("click", runSearch);
+    $("q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") runSearch();
+    });
+
+    $("clearResults").addEventListener("click", () => {
+      $("q").value = "";
+      $("resultsBlock").classList.add("hidden");
+      $("results").innerHTML = "";
+      $("welcomeBlock").classList.remove("hidden");
+      $("discoverSection").classList.remove("hidden");
+    });
+
+    $("brandLink").addEventListener("click", (e) => {
+      e.preventDefault();
+      $("clearResults").click();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    $("indexBtn").addEventListener("click", async () => {
+      try {
+        const r = await fetch("/index", { method: "POST" });
+        if (!r.ok) throw new Error();
+        await refreshStatus();
+      } catch (e) {
+        alert("Could not start indexing.");
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const t = e.target;
+      const inField =
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable);
+      if (e.key === "/" && !inField && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        $("q").focus();
+      }
+    });
+
+    $("refreshTagsBtn").addEventListener("click", async () => {
+      const btn = $("refreshTagsBtn");
+      btn.disabled = true;
+      btn.textContent = "Working…";
+      try {
+        await fetch("/tags/recompute", { method: "POST" });
+        for (let i = 0; i < 45; i++) {
+          await new Promise((r) => setTimeout(r, 1000));
+          await loadLibraryTags();
+          const r = await fetch("/tags/popular");
+          const d = await r.json();
+          if (d.tags && d.tags.length > 0) break;
+        }
+      } catch (e) {
+        alert("Could not refresh tags.");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Refresh tag stats";
+      }
+    });
+
+    async function boot() {
+      migrateStorage();
+      initTheme();
+      renderPopular();
+      renderRecent();
+      await refreshStatus();
+      loadHealthFooter();
+      setInterval(refreshStatus, 4000);
+    }
+    boot();
+  </script>
+</body>
+</html>

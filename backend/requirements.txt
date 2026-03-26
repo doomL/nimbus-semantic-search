@@ -1,0 +1,10 @@
+fastapi>=0.100,<1
+uvicorn[standard]>=0.22,<1
+webdav4>=0.10.0
+open_clip_torch
+Pillow>=10.0
+pillow-heif>=0.13
+python-multipart
+sqlite-vec
+numpy
+python-dotenv>=1.0
