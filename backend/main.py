@@ -275,5 +275,32 @@ def photo_proxy(
     )
 
 
+SW_PATH = FRONTEND_DIR / "sw.js"
+_MANIFEST_PATH = _ASSETS_DIR / "manifest.webmanifest"
+
+
+@app.get("/assets/manifest.webmanifest")
+def serve_manifest() -> FileResponse:
+    """Correct Content-Type for installability; registered before /assets mount."""
+    if not _MANIFEST_PATH.is_file():
+        raise HTTPException(404, "manifest not found")
+    return FileResponse(
+        _MANIFEST_PATH,
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/sw.js")
+def serve_service_worker() -> FileResponse:
+    """Service worker at origin root so scope is `/`."""
+    if not SW_PATH.is_file():
+        raise HTTPException(404, "service worker not found")
+    return FileResponse(
+        SW_PATH,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 if _ASSETS_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=str(_ASSETS_DIR)), name="assets")

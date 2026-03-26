@@ -8,6 +8,10 @@
   <meta name="keywords" content="nimbus, webdav, semantic search, photo search, self-hosted, sqlite-vec, openclip, pcloud" />
   <title>Nimbus — semantic photo search</title>
   <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
+  <link rel="manifest" href="/assets/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
@@ -1073,6 +1077,13 @@
       await refreshStatus();
       loadHealthFooter();
       setInterval(refreshStatus, 4000);
+      try {
+        if ("serviceWorker" in navigator) {
+          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        }
+      } catch (_) {
+        /* ignore */
+      }
     }
     boot();
   </script>

@@ -36,6 +36,7 @@ The **product name** is **Nimbus** — short and memorable. This README still me
 - **HEIC / JPEG / PNG / WebP** — in-memory decode; HEIC via `pillow-heif`.
 - **Self-hosted** — one Docker service; persist only `./data` (SQLite).
 - **Web UI** — light/dark theme, suggested searches, recent queries, no build step.
+- **PWA** — install from the browser; offline shell only (search and photos still need the server).
 
 ## Architecture
 
@@ -84,6 +85,15 @@ flowchart LR
 
 The database is persisted at `./data/photos.db` on the host.
 
+## Progressive Web App (PWA)
+
+The UI includes a **web app manifest** and a **service worker** (`/sw.js`) so you can **install** Nimbus on desktop or mobile (Chrome, Edge, Safari, and others).
+
+- **Install:** Use **Install app** / **Add to Home Screen** while visiting the site. Browsers require **HTTPS** or **`localhost`** for install and for the service worker.
+- **Offline:** The service worker caches the **shell** (HTML and static assets). **Search**, **indexing**, and **images** still need the **Nimbus server** running and access to **WebDAV**.
+- **Updates:** After changing the frontend, rebuild so the container picks up new files: `docker compose up --build`.
+- **Icons:** **`frontend/assets/icons/icon-192.png`** and **`icon-512.png`** match the branding in **`frontend/assets/logo.svg`** (replace or re-export those PNGs if you change the logo).
+
 ## Local development
 
 Requires Python 3.11+.
@@ -125,12 +135,14 @@ Stats refresh automatically after an index run, or via **Refresh tag stats** / `
 | `GET` | `/tags/popular` | Top library concepts `{ tags: [{ tag, count, suggest }] }` |
 | `POST` | `/tags/recompute` | Rebuild tag counts (background job) |
 | `GET` | `/photo?path=…&thumb=true` | Proxy image or thumbnail |
+| `GET` | `/sw.js` | Service worker (PWA) |
+| `GET` | `/assets/manifest.webmanifest` | Web app manifest (PWA) |
 
 ## Project layout
 
 ```
 ├── backend/           # FastAPI app, indexer, CLIP, DB helpers
-├── frontend/          # Single-page UI + logos (SVG)
+├── frontend/          # Single-page UI, logos, PWA (manifest, sw.js, icons)
 ├── data/              # SQLite DB (Docker volume / local)
 ├── docker-compose.yml
 ├── .env.example
