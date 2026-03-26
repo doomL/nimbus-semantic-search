@@ -21,10 +21,6 @@
 
 The **product name** is **Nimbus** — short and memorable. This README still mentions **pCloud**, **semantic search**, **CLIP**, and **WebDAV** so people can find the project on GitHub; that is **not** the app name. **This project is not affiliated with pCloud AG** (see disclaimer below).
 
-### GitHub topics (add these on the repo)
-
-`pcloud` · `webdav` · `semantic-search` · `clip` · `open-clip` · `photo-search` · `sqlite-vec` · `fastapi` · `docker` · `self-hosted`
-
 ---
 
 ## What it does
