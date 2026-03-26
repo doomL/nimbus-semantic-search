@@ -751,6 +751,7 @@
     }
 
     let lastIndexedCount = 0;
+    let statusPollCount = 0;
 
     async function loadLibraryTags() {
       const row = $("libraryTags");
@@ -870,6 +871,8 @@
       try {
         const r = await fetch("/index/status");
         const s = await r.json();
+        statusPollCount += 1;
+        const prevIndexed = lastIndexedCount;
         lastIndexedCount = typeof s.indexed === "number" ? s.indexed : 0;
         const parts = [
           "<strong>Indexed</strong>: " + s.indexed,
@@ -884,8 +887,10 @@
         }
         el.innerHTML = parts.join(" &nbsp;|&nbsp; ");
         $("indexBtn").disabled = !!s.in_progress;
-        loadHealthFooter();
-        loadLibraryTags();
+        // Tag list is expensive; reload when the library size changes or on first poll.
+        if (statusPollCount === 1 || lastIndexedCount !== prevIndexed) {
+          loadLibraryTags();
+        }
       } catch (e) {
         el.textContent = "Could not load status.";
       }
@@ -1084,7 +1089,18 @@
       renderRecent();
       await refreshStatus();
       loadHealthFooter();
-      setInterval(refreshStatus, 4000);
+      setInterval(() => {
+        if (!document.hidden) refreshStatus();
+      }, 8000);
+      setInterval(() => {
+        if (!document.hidden) loadHealthFooter();
+      }, 60000);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+          refreshStatus();
+          loadHealthFooter();
+        }
+      });
       try {
         if ("serviceWorker" in navigator) {
           await navigator.serviceWorker.register("/sw.js", { scope: "/" });
