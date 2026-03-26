@@ -15,6 +15,20 @@ EMBED_DIM = 512
 
 _conn: Optional[sqlite3.Connection] = None
 _db_path: Optional[str] = None
+# Avoid full-table COUNT(*) on every /index/status and /health poll (hot path).
+_photo_count_cache: Optional[int] = None
+
+
+def _refresh_photo_count_cache(conn: sqlite3.Connection) -> int:
+    global _photo_count_cache
+    _photo_count_cache = int(conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0])
+    return _photo_count_cache
+
+
+def _note_photo_inserted() -> None:
+    global _photo_count_cache
+    if _photo_count_cache is not None:
+        _photo_count_cache += 1
 
 
 def _load_extension(conn: sqlite3.Connection) -> None:
@@ -59,6 +73,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
         """
     )
     _conn.commit()
+    _refresh_photo_count_cache(_conn)
     return _conn
 
 
@@ -86,7 +101,11 @@ def path_exists(conn: sqlite3.Connection, webdav_path: str) -> bool:
 
 
 def count_photos(conn: sqlite3.Connection) -> int:
-    return int(conn.execute("SELECT COUNT(*) FROM photos").fetchone()[0])
+    """Row count; uses an in-memory counter updated on insert (fast for status polls)."""
+    global _photo_count_cache
+    if _photo_count_cache is not None:
+        return _photo_count_cache
+    return _refresh_photo_count_cache(conn)
 
 
 def insert_photo(
@@ -112,6 +131,7 @@ def insert_photo(
         "INSERT INTO vec_photos (rowid, embedding) VALUES (?, ?)",
         (pid, embedding_f32),
     )
+    _note_photo_inserted()
     return pid
 
 
