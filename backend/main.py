@@ -7,9 +7,11 @@ import logging
 import os
 import secrets
 import threading
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, AsyncGenerator, Dict, Optional
 from urllib.parse import unquote
 
 from dotenv import load_dotenv
@@ -72,9 +74,103 @@ index_state: Dict[str, Any] = {
 state_lock = threading.Lock()
 db_lock = threading.Lock()
 
+_scheduler: Optional[Any] = None
+
+
+def _parse_auto_index_interval_hours() -> float | None:
+    raw = os.environ.get("NIMBUS_AUTO_INDEX_INTERVAL_HOURS", "").strip()
+    if not raw:
+        return None
+    try:
+        h = float(raw)
+    except ValueError:
+        logger.warning("Invalid NIMBUS_AUTO_INDEX_INTERVAL_HOURS=%r", raw)
+        return None
+    if h <= 0:
+        return None
+    return h
+
+
+def _run_index_thread() -> None:
+    """Start background WebDAV crawl + embedding job (same as POST /index)."""
+    base = _env("PCLOUD_WEBDAV_URL", "https://ewebdav.pcloud.com")
+    user = _env("PCLOUD_USERNAME")
+    password = _env("PCLOUD_PASSWORD")
+
+    def job() -> None:
+        run_index_job(base, user, password, index_state, state_lock, db_lock)
+
+    t = threading.Thread(target=job, name="indexer", daemon=True)
+    t.start()
+
+
+def _scheduled_index_tick() -> None:
+    logger.info("Scheduled auto-index tick.")
+    try:
+        _run_index_thread()
+    except RuntimeError as e:
+        logger.warning("Scheduled index skipped (credentials or config): %s", e)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    global _scheduler
+    if (BASE_DIR.parent / "frontend" / "index.html").is_file():
+        db_default = BASE_DIR.parent / "data" / "photos.db"
+    else:
+        db_default = BASE_DIR / "data" / "photos.db"
+    db_path = os.environ.get("DB_PATH", str(db_default))
+    os.environ.setdefault(
+        "TORCH_HOME",
+        str(BASE_DIR / ".cache" / "torch"),
+    )
+    Path(os.environ["TORCH_HOME"]).mkdir(parents=True, exist_ok=True)
+    init_db(db_path)
+    logger.info("Database ready at %s", db_path)
+    if _basic_auth_credentials():
+        logger.info("HTTP Basic authentication is enabled (set NIMBUS_AUTH_*).")
+    get_clip()
+    logger.info("Startup complete.")
+
+    hours = _parse_auto_index_interval_hours()
+    _scheduler = None
+    if hours is not None:
+        try:
+            from apscheduler.schedulers.background import BackgroundScheduler
+            from apscheduler.triggers.interval import IntervalTrigger
+        except ImportError:
+            logger.warning("apscheduler not installed; auto-index disabled.")
+        else:
+            try:
+                delay_min = float(os.environ.get("NIMBUS_AUTO_INDEX_FIRST_DELAY_MINUTES", "5"))
+            except ValueError:
+                delay_min = 5.0
+            start = datetime.now(timezone.utc) + timedelta(minutes=delay_min)
+            _scheduler = BackgroundScheduler(timezone=timezone.utc)
+            _scheduler.add_job(
+                _scheduled_index_tick,
+                IntervalTrigger(hours=hours, start_date=start),
+                id="auto_index",
+                replace_existing=True,
+            )
+            _scheduler.start()
+            logger.info(
+                "Auto-index every %s h (first run ~%s min after startup, UTC)",
+                hours,
+                delay_min,
+            )
+
+    yield
+
+    if _scheduler is not None:
+        _scheduler.shutdown(wait=False)
+        _scheduler = None
+
+
 app = FastAPI(
     title="Nimbus",
     description="Semantic photo search over WebDAV (e.g. pCloud) with CLIP embeddings.",
+    lifespan=lifespan,
 )
 
 
@@ -87,10 +183,28 @@ def _basic_auth_credentials() -> tuple[str, str] | None:
     return (user, password)
 
 
+def _basic_auth_exempt_path(path: str) -> bool:
+    """
+    PWA bootstrap URLs: browsers often fetch manifest / SW without Authorization,
+    so they must bypass Basic Auth. Only metadata + icons — the app UI and API
+    stay protected.
+    """
+    if path == "/sw.js":
+        return True
+    if path == "/assets/manifest.webmanifest":
+        return True
+    if path in ("/assets/icons/icon-192.png", "/assets/icons/icon-512.png"):
+        return True
+    return False
+
+
 class BasicAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         creds = _basic_auth_credentials()
         if creds is None:
+            return await call_next(request)
+
+        if _basic_auth_exempt_path(request.url.path):
             return await call_next(request)
 
         expected_user, expected_password = creds
@@ -147,27 +261,6 @@ def _normalize_webdav_path(path: str) -> str:
     return raw
 
 
-@app.on_event("startup")
-def startup() -> None:
-    if (BASE_DIR.parent / "frontend" / "index.html").is_file():
-        db_default = BASE_DIR.parent / "data" / "photos.db"
-    else:
-        db_default = BASE_DIR / "data" / "photos.db"
-    db_path = os.environ.get("DB_PATH", str(db_default))
-    os.environ.setdefault(
-        "TORCH_HOME",
-        str(BASE_DIR / ".cache" / "torch"),
-    )
-    Path(os.environ["TORCH_HOME"]).mkdir(parents=True, exist_ok=True)
-    init_db(db_path)
-    logger.info("Database ready at %s", db_path)
-    if _basic_auth_credentials():
-        logger.info("HTTP Basic authentication is enabled (set NIMBUS_AUTH_*).")
-    # Warm CLIP once so first search/index is not cold
-    get_clip()
-    logger.info("Startup complete.")
-
-
 @app.get("/health")
 def health() -> Dict[str, Any]:
     """Liveness + basic DB visibility for monitoring and the web UI."""
@@ -176,6 +269,16 @@ def health() -> Dict[str, Any]:
         "version": __version__,
         "service": "nimbus",
     }
+    ai = _parse_auto_index_interval_hours()
+    payload["auto_index_interval_hours"] = ai
+    sched = _scheduler
+    if sched is not None:
+        try:
+            job = sched.get_job("auto_index")
+            if job is not None and job.next_run_time is not None:
+                payload["auto_index_next_utc"] = job.next_run_time.isoformat()
+        except Exception:
+            pass
     try:
         with db_lock:
             payload["indexed"] = count_photos(get_connection())
@@ -196,16 +299,11 @@ def serve_index() -> FileResponse:
 
 @app.post("/index")
 def start_index() -> JSONResponse:
-    # EU default: ewebdav; non-EU regions: https://webdav.pcloud.com — see .env.example
-    base = _env("PCLOUD_WEBDAV_URL", "https://ewebdav.pcloud.com")
-    user = _env("PCLOUD_USERNAME")
-    password = _env("PCLOUD_PASSWORD")
-
-    def job() -> None:
-        run_index_job(base, user, password, index_state, state_lock, db_lock)
-
-    t = threading.Thread(target=job, name="indexer", daemon=True)
-    t.start()
+    """Start indexing on the server; safe to close the browser — job runs in a background thread."""
+    try:
+        _run_index_thread()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
     return JSONResponse({"started": True})
 
 

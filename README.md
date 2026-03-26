@@ -32,7 +32,8 @@ The **product name** is **Nimbus** — short and memorable. This README still me
 ## Features
 
 - **Semantic search** — scenes, objects, moods, lighting, style.
-- **Resumable indexing** — skips already-indexed paths; safe to stop and restart.
+- **Resumable indexing** — skips already-indexed paths; safe to stop and restart. **Indexing runs on the server** — you can close the browser while it runs.
+- **Optional scheduled index** — e.g. once a day via `NIMBUS_AUTO_INDEX_INTERVAL_HOURS` (see environment variables).
 - **HEIC / JPEG / PNG / WebP** — in-memory decode; HEIC via `pillow-heif`.
 - **Self-hosted** — one Docker service; persist only `./data` (SQLite).
 - **Web UI** — light/dark theme, suggested searches, recent queries, no build step.
@@ -118,6 +119,8 @@ cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `TAG_SIMILARITY_THRESHOLD` | Optional. Cosine similarity threshold (default `0.27`) for library tag counts (see below). |
 | `NIMBUS_AUTH_USER` | Optional. If set **together with** `NIMBUS_AUTH_PASSWORD`, enables **HTTP Basic Auth** on the whole app (see **Security**). |
 | `NIMBUS_AUTH_PASSWORD` | Optional. Password for Basic Auth (use a long random value on a VPS). |
+| `NIMBUS_AUTO_INDEX_INTERVAL_HOURS` | Optional. If set (e.g. `24`), the server **automatically** starts an index crawl on that interval (UTC). **Requires** Docker/process to stay running. First run is delayed by `NIMBUS_AUTO_INDEX_FIRST_DELAY_MINUTES`. |
+| `NIMBUS_AUTO_INDEX_FIRST_DELAY_MINUTES` | Optional. Minutes after startup before the **first** `NIMBUS_AUTO_INDEX_INTERVAL_HOURS` run (default `5`). |
 
 ### Library tags (not EXIF)
 
@@ -129,7 +132,7 @@ Stats refresh automatically after an index run, or via **Refresh tag stats** / `
 
 By default the app **has no login**: anyone who can reach the port can use the UI and API. On a **VPS**, put Nimbus **behind a firewall** (only your IP or a VPN), terminate **HTTPS** in front (Caddy, nginx, Traefik), and/or enable **app-level auth**:
 
-Set **`NIMBUS_AUTH_USER`** and **`NIMBUS_AUTH_PASSWORD`** in `.env`. The server then requires **HTTP Basic Authentication** for every route (HTML, API, thumbnails, PWA assets). Browsers prompt once per origin; `fetch()` calls reuse the same session.
+Set **`NIMBUS_AUTH_USER`** and **`NIMBUS_AUTH_PASSWORD`** in `.env`. The server then requires **HTTP Basic Authentication** for the UI and API. **`/assets/manifest.webmanifest`**, **`/sw.js`**, and the **PWA icon PNGs** are exempt so browsers can load the manifest and service worker (they often omit `Authorization` on those requests). Everything else stays protected.
 
 Use a **strong password**; Basic Auth sends credentials **Base64-encoded** (not encryption) — **HTTPS is strongly recommended** on public networks. For stricter setups (OAuth, SSO), put a reverse proxy or identity provider in front instead.
 

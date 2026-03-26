@@ -8,3 +8,4 @@ python-multipart
 sqlite-vec
 numpy
 python-dotenv>=1.0
+apscheduler>=3.10,<4

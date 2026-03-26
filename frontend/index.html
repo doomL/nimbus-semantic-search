@@ -8,7 +8,7 @@
   <meta name="keywords" content="nimbus, webdav, semantic search, photo search, self-hosted, sqlite-vec, openclip, pcloud" />
   <title>Nimbus — semantic photo search</title>
   <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
-  <link rel="manifest" href="/assets/manifest.webmanifest" />
+  <link rel="manifest" href="/assets/manifest.webmanifest" crossorigin="use-credentials" />
   <link rel="apple-touch-icon" href="/assets/icons/icon-192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -635,7 +635,7 @@
         <button type="button" class="btn btn-primary" id="searchBtn">Search</button>
         <button type="button" class="btn btn-ghost" id="indexBtn">Index photos</button>
       </div>
-      <p class="search-hint">Tip: press <kbd>/</kbd> to jump here</p>
+      <p class="search-hint">Tip: press <kbd>/</kbd> to jump here · <span id="indexHint">Indexing runs on the server — you can close this tab; only new photos are embedded each run.</span></p>
     </div>
 
     <div class="status-panel" id="statusPanel">Loading status…</div>
@@ -926,6 +926,14 @@
           let t = "API v" + h.version;
           if (typeof h.indexed === "number") t += " · " + h.indexed + " photos indexed";
           if (h.database !== "ok") t += " · DB: " + (h.database || "?");
+          if (typeof h.auto_index_interval_hours === "number" && h.auto_index_interval_hours > 0) {
+            t += " · Auto-index every " + h.auto_index_interval_hours + "h";
+            if (h.auto_index_next_utc) {
+              try {
+                t += " (next " + new Date(h.auto_index_next_utc).toLocaleString() + ")";
+              } catch (e) {}
+            }
+          }
           el.textContent = t;
           el.hidden = false;
         }
