@@ -116,12 +116,22 @@ cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `PCLOUD_PASSWORD` | Password or app token. |
 | `DB_PATH` | SQLite file path (Docker default: `/app/data/photos.db`). |
 | `TAG_SIMILARITY_THRESHOLD` | Optional. Cosine similarity threshold (default `0.27`) for library tag counts (see below). |
+| `NIMBUS_AUTH_USER` | Optional. If set **together with** `NIMBUS_AUTH_PASSWORD`, enables **HTTP Basic Auth** on the whole app (see **Security**). |
+| `NIMBUS_AUTH_PASSWORD` | Optional. Password for Basic Auth (use a long random value on a VPS). |
 
 ### Library tags (not EXIF)
 
 There are **no embedded keywords** in your files. After indexing, Nimbus compares every stored image embedding against a **fixed list of English concept prompts** (beach, portrait, food, …) using CLIP. For each concept, it counts how many photos exceed a similarity threshold. That produces the **“Common in your library”** chips on the home page — useful, but **approximate** (not the same as manual tags).
 
 Stats refresh automatically after an index run, or via **Refresh tag stats** / `POST /tags/recompute`.
+
+## Security (VPS / public internet)
+
+By default the app **has no login**: anyone who can reach the port can use the UI and API. On a **VPS**, put Nimbus **behind a firewall** (only your IP or a VPN), terminate **HTTPS** in front (Caddy, nginx, Traefik), and/or enable **app-level auth**:
+
+Set **`NIMBUS_AUTH_USER`** and **`NIMBUS_AUTH_PASSWORD`** in `.env`. The server then requires **HTTP Basic Authentication** for every route (HTML, API, thumbnails, PWA assets). Browsers prompt once per origin; `fetch()` calls reuse the same session.
+
+Use a **strong password**; Basic Auth sends credentials **Base64-encoded** (not encryption) — **HTTPS is strongly recommended** on public networks. For stricter setups (OAuth, SSO), put a reverse proxy or identity provider in front instead.
 
 ## API (short)
 
@@ -158,6 +168,7 @@ Stats refresh automatically after an index run, or via **Refresh tag stats** / `
 | `database` is `error` in `/health` | Check `DB_PATH` is writable (Docker: `./data` mounted). Inspect logs: `docker compose logs`. |
 | Thumbnails slow or fail | Large originals are downloaded each time; first load is slower. HEIC needs `pillow-heif` (included in Docker). |
 | Container exits or restarts | First boot downloads the CLIP model (~minutes). `HEALTHCHECK` allows **120s** startup; see Docker logs. |
+| `401 Unauthorized` everywhere | If you set `NIMBUS_AUTH_*`, use the same username/password in the browser prompt. Ensure `.env` is loaded by Compose. |
 
 ## Acknowledgments
 

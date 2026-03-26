@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
+import secrets
 import threading
 from io import BytesIO
 from pathlib import Path
@@ -14,6 +16,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 from PIL import Image, ImageOps
 from webdav4.client import Client
 
@@ -73,6 +78,46 @@ app = FastAPI(
 )
 
 
+def _basic_auth_credentials() -> tuple[str, str] | None:
+    """If both user and password are set, require HTTP Basic Auth on every request."""
+    user = os.environ.get("NIMBUS_AUTH_USER", "").strip()
+    password = os.environ.get("NIMBUS_AUTH_PASSWORD", "")
+    if not user or not password:
+        return None
+    return (user, password)
+
+
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        creds = _basic_auth_credentials()
+        if creds is None:
+            return await call_next(request)
+
+        expected_user, expected_password = creds
+        auth = request.headers.get("Authorization")
+        if auth and auth.startswith("Basic "):
+            try:
+                raw = base64.b64decode(auth[6:].strip(), validate=True)
+                decoded = raw.decode("utf-8")
+            except (ValueError, UnicodeDecodeError):
+                decoded = ""
+            if ":" in decoded:
+                u, p = decoded.split(":", 1)
+                if len(u) == len(expected_user) and len(p) == len(expected_password):
+                    if secrets.compare_digest(u, expected_user) and secrets.compare_digest(
+                        p, expected_password
+                    ):
+                        return await call_next(request)
+
+        return Response(
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Nimbus"'},
+        )
+
+
+app.add_middleware(BasicAuthMiddleware)
+
+
 def _env(name: str, default: str | None = None) -> str:
     v = os.environ.get(name)
     if v is not None and v != "":
@@ -116,6 +161,8 @@ def startup() -> None:
     Path(os.environ["TORCH_HOME"]).mkdir(parents=True, exist_ok=True)
     init_db(db_path)
     logger.info("Database ready at %s", db_path)
+    if _basic_auth_credentials():
+        logger.info("HTTP Basic authentication is enabled (set NIMBUS_AUTH_*).")
     # Warm CLIP once so first search/index is not cold
     get_clip()
     logger.info("Startup complete.")
