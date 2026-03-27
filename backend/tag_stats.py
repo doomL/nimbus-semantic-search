@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
 from clip_model import encode_text_batch
+from db import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +88,7 @@ def _threshold() -> float:
 
 
 def load_embedding_matrix(conn) -> np.ndarray:
-    """(N, 512) float32 L2-normalized rows."""
+    """(N, 512) float32 L2-normalized rows. Caller must hold db_lock."""
     rows = conn.execute("SELECT embedding FROM photos").fetchall()
     if not rows:
         return np.zeros((0, 512), dtype=np.float32)
@@ -101,44 +103,79 @@ def load_embedding_matrix(conn) -> np.ndarray:
     return np.stack(vecs, axis=0).astype(np.float32)
 
 
-def recompute_library_tags(conn) -> int:
+def compute_tag_match_counts(X: np.ndarray) -> np.ndarray:
     """
-    Replace tag_stats table from current photos. Returns number of tags with count > 0.
-    Caller must hold db_lock for writes.
+    CLIP similarity vs fixed prompts; returns int counts per TAG_PROMPTS row.
+    CPU/GPU heavy — call without holding db_lock.
     """
-    labels = [t[0] for t in TAG_PROMPTS]
     prompts = [t[1] for t in TAG_PROMPTS]
-
-    X = load_embedding_matrix(conn)
-    n = X.shape[0]
+    n = int(X.shape[0])
     if n == 0:
-        conn.execute("DELETE FROM tag_stats")
-        conn.commit()
-        return 0
-
-    logger.info("Tag stats: loading %s image embeddings…", n)
+        return np.zeros(len(TAG_PROMPTS), dtype=np.int64)
+    logger.info("Tag stats: computing matches for %s image embeddings…", n)
     T = encode_text_batch(prompts)
-    # cosine similarity: both L2-normalized -> dot product
     sim = X @ T.T
     thr = _threshold()
-    counts = (sim >= thr).sum(axis=0).astype(int)
-    now = datetime.now(timezone.utc).isoformat()
+    return (sim >= thr).sum(axis=0).astype(np.int64)
 
+
+def replace_tag_stats(conn, counts: np.ndarray) -> int:
+    """
+    Replace tag_stats from per-label counts. Fast SQLite writes.
+    Caller must hold db_lock.
+    """
+    labels = [t[0] for t in TAG_PROMPTS]
+    now = datetime.now(timezone.utc).isoformat()
     conn.execute("DELETE FROM tag_stats")
+    nonzero = 0
     for label, c in zip(labels, counts):
         if int(c) > 0:
             conn.execute(
                 "INSERT INTO tag_stats (tag, count, updated_at) VALUES (?, ?, ?)",
                 (label, int(c), now),
             )
+            nonzero += 1
     conn.commit()
-    nonzero = int((counts > 0).sum())
     logger.info(
         "Tag stats: threshold=%.3f, %s tags with at least one match.",
-        thr,
+        _threshold(),
         nonzero,
     )
     return nonzero
+
+
+def recompute_library_tags(conn) -> int:
+    """
+    Replace tag_stats from current photos (single-threaded / tests).
+    Caller must hold db_lock for the whole call.
+    """
+    X = load_embedding_matrix(conn)
+    if X.shape[0] == 0:
+        conn.execute("DELETE FROM tag_stats")
+        conn.commit()
+        return 0
+    counts = compute_tag_match_counts(X)
+    return replace_tag_stats(conn, counts)
+
+
+def recompute_library_tags_background(db_lock: threading.Lock) -> int:
+    """
+    Rebuild tag_stats without holding db_lock during CLIP/numpy work.
+    Other handlers can read the DB (e.g. GET /tags/popular) while this runs.
+    """
+    with db_lock:
+        conn = get_connection()
+        X = load_embedding_matrix(conn)
+    if X.shape[0] == 0:
+        with db_lock:
+            conn = get_connection()
+            conn.execute("DELETE FROM tag_stats")
+            conn.commit()
+        return 0
+    counts = compute_tag_match_counts(X)
+    with db_lock:
+        conn = get_connection()
+        return replace_tag_stats(conn, counts)
 
 
 def get_popular_tags(conn, limit: int = 24) -> List[Dict[str, Any]]:

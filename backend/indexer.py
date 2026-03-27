@@ -21,7 +21,7 @@ from db import (
     record_index_failure,
 )
 from image_io import load_rgb_image
-from tag_stats import recompute_library_tags
+from tag_stats import recompute_library_tags_background
 
 logger = logging.getLogger(__name__)
 
@@ -339,8 +339,8 @@ def _schedule_library_tag_recompute(db_lock: threading.Lock) -> None:
                 conn = get_connection()
                 if count_photos(conn) == 0:
                     return
-                logger.info("Updating library tag statistics…")
-                recompute_library_tags(conn)
+            logger.info("Updating library tag statistics…")
+            recompute_library_tags_background(db_lock)
         except Exception:
             logger.exception("Library tag statistics update failed")
 
