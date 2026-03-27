@@ -51,7 +51,6 @@ from db import (  # noqa: E402
     get_photo_indexed_at,
     init_db,
     list_index_failures,
-    list_photos_in_folder,
     list_recent_photos,
     numpy_to_blob,
     search_similar_to_embedding,
@@ -531,21 +530,6 @@ def photos_similar(
             }
         )
     return {"query_path": raw_path, "items": items}
-
-
-@app.get("/photos/folder")
-def photos_in_folder(
-    path: str = Query(..., max_length=8192),
-    limit: int = Query(24, ge=1, le=48),
-) -> Dict[str, Any]:
-    """Other indexed photos in the same folder as ``path`` (direct children only)."""
-    raw_path = _normalize_webdav_path(path)
-    with db_lock:
-        folder, rows = list_photos_in_folder(get_connection(), raw_path, limit=limit)
-    items = [
-        {"webdav_path": p, "filename": f, "indexed_at": t} for p, f, t in rows
-    ]
-    return {"folder": folder, "items": items}
 
 
 @app.get("/index/failures")
