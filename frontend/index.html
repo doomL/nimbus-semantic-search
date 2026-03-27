@@ -1367,18 +1367,31 @@
       }
     }
 
+    function isSearchResultsActive() {
+      return (
+        $("q").value.trim().length > 0 && !$("resultsBlock").classList.contains("hidden")
+      );
+    }
+
+    /** Hide "Recently indexed" while search results are shown; call after loadRecentPhotos updates the section. */
+    function syncRecentSectionForSearch() {
+      const sec = $("recentSection");
+      if (isSearchResultsActive()) sec.hidden = true;
+    }
+
     async function loadRecentPhotos() {
       const sec = $("recentSection");
       const grid = $("recentGrid");
       const tools = $("failuresTools");
       try {
-        const r = await fetch("/photos/recent?limit=24");
+        const r = await fetch("/photos/recent?limit=8");
         if (!r.ok) throw new Error();
         const data = await r.json();
         const items = data.items || [];
         grid.innerHTML = "";
         if (items.length === 0) {
           sec.hidden = true;
+          syncRecentSectionForSearch();
           return;
         }
         sec.hidden = false;
@@ -1411,6 +1424,7 @@
           card.appendChild(a);
           grid.appendChild(card);
         }
+        syncRecentSectionForSearch();
         try {
           const fr = await fetch("/index/failures?limit=1");
           if (fr.ok) {
@@ -1424,6 +1438,7 @@
       } catch (e) {
         sec.hidden = true;
       }
+      syncRecentSectionForSearch();
     }
 
     function updateIndexEmptyCallout(indexed) {
@@ -1708,8 +1723,12 @@
       $("welcomeBlock").classList.add("hidden");
       $("discoverSection").classList.remove("hidden");
       $("resultsBlock").classList.remove("hidden");
+      $("recentSection").hidden = true;
       $("resultsQuery").textContent = '"' + q + '"';
       container.innerHTML = skeletonResultsHtml();
+      requestAnimationFrame(() => {
+        $("resultsBlock").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
       saveRecent(q);
       renderRecent();
 
