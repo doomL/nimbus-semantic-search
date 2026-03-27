@@ -544,6 +544,24 @@
       cursor: pointer;
     }
     .lightbox-close:hover { background: var(--surface2); }
+    .lightbox-download {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 2;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .lightbox-download:hover { background: var(--surface2); }
     #lightboxImg {
       max-width: 92vw;
       max-height: 88vh;
@@ -558,7 +576,8 @@
     .btn:focus-visible,
     .chip:focus-visible,
     .theme-toggle:focus-visible,
-    .btn-text:focus-visible {
+    .btn-text:focus-visible,
+    .lightbox-download:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 3px;
     }
@@ -1041,6 +1060,7 @@
 
   <dialog id="lightbox" class="lightbox">
     <form method="dialog" style="margin:0;position:relative;">
+      <a id="lightboxDownload" class="lightbox-download" href="#" download>Download</a>
       <button type="submit" class="lightbox-close">Close</button>
       <img id="lightboxImg" alt="" />
     </form>
@@ -1340,6 +1360,9 @@
     function openLightboxForPath(path) {
       const img = $("lightboxImg");
       const url = photoUrl(path, false);
+      const dl = $("lightboxDownload");
+      dl.href = url;
+      dl.setAttribute("download", suggestedPhotoFilename(path));
       const seq = ++lightboxOpenSeq;
       img.classList.add("lightbox-img-loading");
       img.src = url;
@@ -1690,6 +1713,13 @@
       u.searchParams.set("path", path);
       if (thumb) u.searchParams.set("thumb", "true");
       return u.toString();
+    }
+
+    /** Last path segment for suggested download filename (WebDAV paths use `/`). */
+    function suggestedPhotoFilename(path) {
+      const seg = path.split("/").filter(Boolean).pop();
+      if (!seg) return "photo";
+      return seg.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
     }
 
     function skeletonResultsHtml() {
