@@ -11,7 +11,14 @@ from typing import Any, Callable, Dict, List, Optional
 from webdav4.client import Client, ResourceNotFound
 
 from clip_model import encode_image_pil
-from db import count_photos, get_connection, insert_photo, numpy_to_blob, path_exists
+from db import (
+    count_photos,
+    get_connection,
+    insert_photo,
+    numpy_to_blob,
+    path_exists,
+    record_index_failure,
+)
 from image_io import load_rgb_image
 from tag_stats import recompute_library_tags
 
@@ -132,18 +139,31 @@ def _download_to_bytesio(client: Client, path: str) -> BytesIO:
     return buf
 
 
+def _download_image_bytes(client: Client, webdav_path: str) -> bytes:
+    """Download file bytes; retry once if empty (flaky WebDAV / CDN)."""
+    data = _download_to_bytesio(client, webdav_path).getvalue()
+    if len(data) == 0:
+        time.sleep(0.35)
+        data = _download_to_bytesio(client, webdav_path).getvalue()
+    return data
+
+
+def _failure_reason(exc: BaseException) -> str:
+    msg = str(exc).strip() or type(exc).__name__
+    line = msg.split("\n", 1)[0]
+    return line[:500]
+
+
 def _encode_and_store(
     conn,
     client: Client,
     webdav_path: str,
     filename: str,
 ) -> None:
-    buf = _download_to_bytesio(client, webdav_path)
-    data = buf.getvalue()
+    data = _download_image_bytes(client, webdav_path)
     try:
         img = load_rgb_image(data, source=webdav_path)
-    except Exception as e:
-        logger.error("Cannot open image %s: %s", webdav_path, e)
+    except Exception:
         raise
 
     vec = encode_image_pil(img)
@@ -218,10 +238,16 @@ def run_index_job(
                             int(state.get("indexed_this_run", 0)) + 1
                         )
                 except Exception as e:
-                    logger.exception("Failed to index %s: %s", webdav_path, e)
+                    r = _failure_reason(e)
+                    logger.info("index_fail path=%s reason=%s", webdav_path, r)
+                    try:
+                        with db_lock:
+                            record_index_failure(get_connection(), webdav_path, r)
+                    except Exception:
+                        pass
                     with state_lock:
                         state["errors"] = int(state.get("errors", 0)) + 1
-                        state["last_error"] = str(e)
+                        state["last_error"] = f"{webdav_path}: {r}"
         with db_lock:
             conn = get_connection()
             conn.commit()

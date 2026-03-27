@@ -658,6 +658,85 @@
       padding-bottom: 1.25rem;
       border-bottom: 1px solid var(--border);
     }
+    .index-empty-callout {
+      font-size: 0.9rem;
+      color: var(--muted);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1.25rem;
+      line-height: 1.45;
+    }
+    .index-empty-callout strong { color: var(--text); }
+    .recent-section {
+      margin-bottom: 1.75rem;
+    }
+    .recent-section .section-label { margin-bottom: 0.5rem; }
+    .recent-section .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 0 0 0.85rem;
+    }
+    .weak-results-block {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px dashed var(--border);
+    }
+    .weak-results-block h3 {
+      font-family: "Syne", sans-serif;
+      font-size: 0.95rem;
+      margin: 0 0 0.35rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .weak-results-block .weak-hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0 0 1rem;
+    }
+    .card.card--weak {
+      opacity: 0.92;
+    }
+    .card.card--weak .meta .score {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .thumb img.thumb-broken {
+      object-fit: contain;
+      padding: 1rem;
+      opacity: 0.55;
+    }
+    .failures-tools {
+      font-size: 0.78rem;
+      margin-top: 0.5rem;
+    }
+    .failures-tools a {
+      color: var(--accent2);
+      font-weight: 600;
+    }
+    .toast {
+      position: fixed;
+      bottom: 1.35rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(120%);
+      z-index: 200;
+      max-width: min(92vw, 26rem);
+      padding: 0.75rem 1.15rem;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 40px var(--shadow);
+      font-size: 0.88rem;
+      color: var(--text);
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .toast.toast--show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -694,8 +773,12 @@
         <button type="button" class="btn btn-primary" id="searchBtn">Search</button>
         <button type="button" class="btn btn-ghost" id="indexBtn">Index photos</button>
       </div>
-      <p class="search-hint">Tip: press <kbd>/</kbd> to jump here · <span id="indexHint">Indexing runs on the server — you can close this tab; only new photos are embedded each run.</span></p>
+      <p class="search-hint">Tip: <kbd>/</kbd> focuses search · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs it · <kbd>Esc</kbd> clears results · <span id="indexHint">Indexing runs on the server — you can close this tab; only new photos are embedded each run.</span></p>
     </div>
+
+    <p class="index-empty-callout hidden" id="indexEmptyCallout" role="status">
+      <strong>No photos indexed yet.</strong> Click <strong>Index photos</strong> above so Nimbus can build embeddings from your WebDAV library. You can leave this page while it runs.
+    </p>
 
     <div class="status-panel" id="statusPanel">Loading status…</div>
     <div class="index-progress-wrap" id="indexProgressWrap" hidden>
@@ -720,6 +803,17 @@
       </svg>
       <p>Index your library once, then search by meaning. Pick a suggestion or write your own — the model understands scenes, not filenames.</p>
     </div>
+
+    <section class="recent-section" id="recentSection" hidden>
+      <div class="section-label">Recently indexed</div>
+      <p class="hint">Latest additions to your local index (newest first).</p>
+      <div class="grid" id="recentGrid" role="region" aria-label="Recently indexed photos"></div>
+      <p class="failures-tools hidden" id="failuresTools">
+        <a href="/index/failures.csv" download="nimbus-index-failures.csv">Download index failures (CSV)</a>
+        ·
+        <a href="#" id="failuresJsonLink">View failures (JSON)</a>
+      </p>
+    </section>
 
     <section class="discover" id="discoverSection">
       <div id="libraryTagsBlock">
@@ -754,6 +848,8 @@
       <span class="footer-version" id="footerVersion" hidden></span>
     </footer>
   </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <dialog id="lightbox" class="lightbox">
     <form method="dialog" style="margin:0;position:relative;">
@@ -821,6 +917,145 @@
     let lastIndexedCount = 0;
     let statusPollCount = 0;
     let statusIntervalId = null;
+    let lastIndexingInProgress = false;
+
+    const PLACEHOLDER_THUMB =
+      "data:image/svg+xml," +
+      encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" fill="none">' +
+          '<rect width="160" height="160" fill="#1a2030"/>' +
+          '<path d="M48 112L72 88l16 16 24-32 24 28v24H48v-24z" stroke="#64748b" stroke-width="2" fill="none"/>' +
+          '<circle cx="58" cy="62" r="10" stroke="#64748b" stroke-width="2" fill="none"/>' +
+          '<text x="80" y="132" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="11">No preview</text>' +
+          "</svg>"
+      );
+
+    let toastTimer = null;
+    function showToast(message) {
+      const el = $("toast");
+      el.textContent = message;
+      el.classList.add("toast--show");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        el.classList.remove("toast--show");
+      }, 5200);
+    }
+
+    function createThumbImg(thumbSrc) {
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = "";
+      img.src = thumbSrc;
+      img.addEventListener(
+        "error",
+        function onThumbErr() {
+          img.removeEventListener("error", onThumbErr);
+          img.src = PLACEHOLDER_THUMB;
+          img.classList.add("thumb-broken");
+        },
+        { once: true }
+      );
+      return img;
+    }
+
+    function openLightboxForPath(path) {
+      $("lightboxImg").src = photoUrl(path, false);
+      $("lightbox").showModal();
+    }
+
+    function appendResultCards(grid, items, weak) {
+      for (const item of items) {
+        const card = document.createElement("div");
+        card.className = "card" + (weak ? " card--weak" : "");
+        const thumbSrc = photoUrl(item.webdav_path, true);
+        const a = document.createElement("a");
+        a.href = "#";
+        a.className = "open-full";
+        a.dataset.path = item.webdav_path;
+        const thumbWrap = document.createElement("div");
+        thumbWrap.className = "thumb";
+        thumbWrap.appendChild(createThumbImg(thumbSrc));
+        const scorePct = (item.score * 100).toFixed(1) + "%";
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const scoreEl = document.createElement("div");
+        scoreEl.className = "score";
+        scoreEl.textContent = scorePct + (weak ? " · low confidence" : " match");
+        meta.appendChild(scoreEl);
+        meta.appendChild(document.createTextNode(item.filename));
+        a.appendChild(thumbWrap);
+        a.appendChild(meta);
+        a.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          openLightboxForPath(a.dataset.path);
+        });
+        card.appendChild(a);
+        grid.appendChild(card);
+      }
+    }
+
+    async function loadRecentPhotos() {
+      const sec = $("recentSection");
+      const grid = $("recentGrid");
+      const tools = $("failuresTools");
+      try {
+        const r = await fetch("/photos/recent?limit=24");
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        const items = data.items || [];
+        grid.innerHTML = "";
+        if (items.length === 0) {
+          sec.hidden = true;
+          return;
+        }
+        sec.hidden = false;
+        for (const item of items) {
+          const card = document.createElement("div");
+          card.className = "card";
+          const thumbSrc = photoUrl(item.webdav_path, true);
+          const a = document.createElement("a");
+          a.href = "#";
+          a.className = "open-full";
+          a.dataset.path = item.webdav_path;
+          const thumbWrap = document.createElement("div");
+          thumbWrap.className = "thumb";
+          thumbWrap.appendChild(createThumbImg(thumbSrc));
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          const sub = document.createElement("div");
+          sub.className = "score";
+          sub.textContent = "Indexed";
+          const name = document.createElement("div");
+          name.textContent = item.filename;
+          meta.appendChild(sub);
+          meta.appendChild(name);
+          a.appendChild(thumbWrap);
+          a.appendChild(meta);
+          a.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            openLightboxForPath(a.dataset.path);
+          });
+          card.appendChild(a);
+          grid.appendChild(card);
+        }
+        try {
+          const fr = await fetch("/index/failures?limit=1");
+          if (fr.ok) {
+            const fd = await fr.json();
+            const n = fd.failures && fd.failures.length;
+            tools.classList.toggle("hidden", !n);
+          } else tools.classList.add("hidden");
+        } catch (e) {
+          tools.classList.add("hidden");
+        }
+      } catch (e) {
+        sec.hidden = true;
+      }
+    }
+
+    function updateIndexEmptyCallout(indexed) {
+      $("indexEmptyCallout").classList.toggle("hidden", indexed > 0);
+    }
 
     function updateIndexProgress(s) {
       const wrap = $("indexProgressWrap");
@@ -977,6 +1212,24 @@
         statusPollCount += 1;
         const prevIndexed = lastIndexedCount;
         lastIndexedCount = typeof s.indexed === "number" ? s.indexed : 0;
+        updateIndexEmptyCallout(lastIndexedCount);
+        const wasIndexing = lastIndexingInProgress;
+        lastIndexingInProgress = !!s.in_progress;
+        if (wasIndexing && !lastIndexingInProgress) {
+          const n = typeof s.indexed_this_run === "number" ? s.indexed_this_run : 0;
+          const sk = typeof s.skipped === "number" ? s.skipped : 0;
+          const er = typeof s.errors === "number" ? s.errors : 0;
+          showToast(
+            "Indexing finished — " +
+              n +
+              " new, " +
+              sk +
+              " skipped" +
+              (er ? ", " + er + " errors" : "") +
+              "."
+          );
+          loadRecentPhotos();
+        }
         const parts = [
           "<strong>Indexed</strong>: " + s.indexed,
           "<strong>Files (last run)</strong>: " + s.total,
@@ -1001,6 +1254,7 @@
         // Tag list is expensive; reload when the library size changes or on first poll.
         if (statusPollCount === 1 || lastIndexedCount !== prevIndexed) {
           loadLibraryTags();
+          loadRecentPhotos();
         }
       } catch (e) {
         el.textContent = "Could not load status.";
@@ -1067,6 +1321,7 @@
         $("welcomeBlock").classList.remove("hidden");
         $("discoverSection").classList.remove("hidden");
         container.innerHTML = "";
+        loadRecentPhotos();
         return;
       }
       $("welcomeBlock").classList.add("hidden");
@@ -1089,41 +1344,37 @@
         })
         .then((data) => {
           if (!data) return;
-          if (!data.results || data.results.length === 0) {
+          const strong = data.results || [];
+          const weak = data.weak_results || [];
+          if (strong.length === 0 && weak.length === 0) {
             container.innerHTML =
               '<p class="empty" role="status">No photos matched that phrase. Try different words, pick a suggestion below, or index if your library is new.</p>';
             return;
           }
-          const grid = document.createElement("div");
-          grid.className = "grid";
-          for (const item of data.results) {
-            const card = document.createElement("div");
-            card.className = "card";
-            const scorePct = (item.score * 100).toFixed(1) + "%";
-            const thumbSrc = photoUrl(item.webdav_path, true);
-            const a = document.createElement("a");
-            a.href = "#";
-            a.className = "open-full";
-            a.dataset.path = item.webdav_path;
-            a.innerHTML =
-              '<div class="thumb"><img loading="lazy" alt="" src="' +
-              escapeHtml(thumbSrc) +
-              '" /></div>' +
-              '<div class="meta"><div class="score">' +
-              scorePct +
-              " match</div>" +
-              escapeHtml(item.filename) +
-              "</div>";
-            a.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              $("lightboxImg").src = photoUrl(a.dataset.path, false);
-              $("lightbox").showModal();
-            });
-            card.appendChild(a);
-            grid.appendChild(card);
-          }
           container.innerHTML = "";
-          container.appendChild(grid);
+          if (strong.length > 0) {
+            const grid = document.createElement("div");
+            grid.className = "grid";
+            appendResultCards(grid, strong, false);
+            container.appendChild(grid);
+          }
+          if (weak.length > 0) {
+            const wrap = document.createElement("div");
+            wrap.className = "weak-results-block";
+            const smin =
+              typeof data.strong_min === "number"
+                ? (data.strong_min * 100).toFixed(0)
+                : "22";
+            wrap.innerHTML =
+              "<h3>Weaker matches</h3><p class=\"weak-hint\">Below ~" +
+              smin +
+              "% similarity — still related, but less confident.</p>";
+            const wgrid = document.createElement("div");
+            wgrid.className = "grid";
+            appendResultCards(wgrid, weak, true);
+            wrap.appendChild(wgrid);
+            container.appendChild(wrap);
+          }
         })
         .catch(() => {
           container.innerHTML =
@@ -1133,7 +1384,17 @@
 
     $("searchBtn").addEventListener("click", runSearch);
     $("q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        runSearch();
+        return;
+      }
       if (e.key === "Enter") runSearch();
+    });
+
+    $("failuresJsonLink").addEventListener("click", (e) => {
+      e.preventDefault();
+      window.open("/index/failures", "_blank", "noopener,noreferrer");
     });
 
     $("clearResults").addEventListener("click", () => {
@@ -1142,6 +1403,7 @@
       $("results").innerHTML = "";
       $("welcomeBlock").classList.remove("hidden");
       $("discoverSection").classList.remove("hidden");
+      loadRecentPhotos();
     });
 
     $("brandLink").addEventListener("click", (e) => {
@@ -1167,6 +1429,19 @@
         (t.tagName === "INPUT" ||
           t.tagName === "TEXTAREA" ||
           t.isContentEditable);
+      if (e.key === "Escape") {
+        const lb = $("lightbox");
+        if (lb.open) {
+          e.preventDefault();
+          lb.close();
+          return;
+        }
+        if (!inField) {
+          e.preventDefault();
+          $("clearResults").click();
+        }
+        return;
+      }
       if (e.key === "/" && !inField && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         $("q").focus();
@@ -1200,6 +1475,7 @@
       renderPopular();
       renderRecent();
       await refreshStatus();
+      loadRecentPhotos();
       loadHealthFooter();
       setInterval(() => {
         if (!document.hidden) loadHealthFooter();

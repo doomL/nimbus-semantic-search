@@ -57,6 +57,13 @@ def init_db(db_path: str) -> sqlite3.Connection:
         );
 
         CREATE INDEX IF NOT EXISTS idx_photos_path ON photos(webdav_path);
+        CREATE INDEX IF NOT EXISTS idx_photos_indexed_at ON photos(indexed_at DESC);
+
+        CREATE TABLE IF NOT EXISTS index_failures (
+            webdav_path TEXT PRIMARY KEY,
+            reason TEXT NOT NULL,
+            failed_at TEXT NOT NULL
+        );
 
         CREATE TABLE IF NOT EXISTS tag_stats (
             tag TEXT PRIMARY KEY,
@@ -158,6 +165,57 @@ def search_similar(
     for webdav_path, filename, dist in rows:
         out.append((str(webdav_path), str(filename), float(dist)))
     return out
+
+
+def list_recent_photos(
+    conn: sqlite3.Connection, limit: int = 24
+) -> List[Tuple[str, str, str]]:
+    """Return [(webdav_path, filename, indexed_at_iso), ...] newest first."""
+    rows = conn.execute(
+        """
+        SELECT webdav_path, filename, indexed_at
+        FROM photos
+        ORDER BY indexed_at DESC, id DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [(str(p), str(f), str(t)) for p, f, t in rows]
+
+
+def record_index_failure(
+    conn: sqlite3.Connection, webdav_path: str, reason: str
+) -> None:
+    """Upsert a failed path (last failure wins)."""
+    from datetime import datetime, timezone
+
+    failed_at = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        INSERT INTO index_failures (webdav_path, reason, failed_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(webdav_path) DO UPDATE SET
+            reason = excluded.reason,
+            failed_at = excluded.failed_at
+        """,
+        (webdav_path, reason[:2000], failed_at),
+    )
+
+
+def list_index_failures(
+    conn: sqlite3.Connection, limit: int = 200
+) -> List[Tuple[str, str, str]]:
+    """Return [(webdav_path, reason, failed_at), ...] newest first."""
+    rows = conn.execute(
+        """
+        SELECT webdav_path, reason, failed_at
+        FROM index_failures
+        ORDER BY failed_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    return [(str(p), str(r), str(t)) for p, r, t in rows]
 
 
 def numpy_to_blob(vec) -> bytes:

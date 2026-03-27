@@ -7,6 +7,7 @@ import logging
 import os
 import secrets
 import threading
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -16,7 +17,7 @@ from urllib.parse import unquote
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -42,7 +43,13 @@ except ImportError:
     pass
 
 from clip_model import get_clip  # noqa: E402  — load env before heavy imports
-from db import count_photos, get_connection, init_db  # noqa: E402
+from db import (  # noqa: E402
+    count_photos,
+    get_connection,
+    init_db,
+    list_index_failures,
+    list_recent_photos,
+)
 from image_io import load_rgb_image  # noqa: E402
 from indexer import run_index_job  # noqa: E402
 from search import search_photos  # noqa: E402
@@ -329,8 +336,48 @@ def index_status() -> Dict[str, Any]:
 def search(
     q: str = Query(..., min_length=1, max_length=500, description="Natural language query"),
 ) -> Dict[str, Any]:
-    results = search_photos(q, k=20)
-    return {"query": q.strip(), "results": results}
+    out = search_photos(q, k=20)
+    return {"query": q.strip(), **out}
+
+
+@app.get("/photos/recent")
+def photos_recent(limit: int = Query(24, ge=1, le=48)) -> Dict[str, Any]:
+    """Newest indexed paths (for home screen gallery)."""
+    with db_lock:
+        rows = list_recent_photos(get_connection(), limit=limit)
+    items = [
+        {"webdav_path": p, "filename": f, "indexed_at": t} for p, f, t in rows
+    ]
+    return {"items": items}
+
+
+@app.get("/index/failures")
+def index_failures_list(limit: int = Query(200, ge=1, le=2000)) -> Dict[str, Any]:
+    with db_lock:
+        rows = list_index_failures(get_connection(), limit=limit)
+    return {
+        "failures": [
+            {"webdav_path": p, "reason": r, "failed_at": t} for p, r, t in rows
+        ]
+    }
+
+
+@app.get("/index/failures.csv")
+def index_failures_csv() -> Response:
+    with db_lock:
+        rows = list_index_failures(get_connection(), limit=5000)
+    lines = ["webdav_path,reason,failed_at"]
+    for p, r, t in rows:
+        def esc(s: str) -> str:
+            return '"' + s.replace('"', '""') + '"'
+
+        lines.append(",".join([esc(p), esc(r), esc(t)]))
+    body = "\r\n".join(lines) + "\r\n"
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="nimbus-index-failures.csv"'},
+    )
 
 
 @app.get("/tags/popular")
@@ -365,6 +412,18 @@ def _thumb_bytes(data: bytes, max_px: int = 300, *, source: str = "") -> bytes:
     return out.getvalue()
 
 
+def _download_webdav_bytes(client: Client, raw_path: str) -> bytes:
+    buf = BytesIO()
+    client.download_fileobj(raw_path, buf)
+    data = buf.getvalue()
+    if len(data) == 0:
+        time.sleep(0.35)
+        buf = BytesIO()
+        client.download_fileobj(raw_path, buf)
+        data = buf.getvalue()
+    return data
+
+
 @app.get("/photo")
 def photo_proxy(
     path: str = Query(..., max_length=8192, description="WebDAV path to the image"),
@@ -377,14 +436,11 @@ def photo_proxy(
     password = _env("PCLOUD_PASSWORD")
 
     client = Client(base, auth=(user, password), retry=True)
-    buf = BytesIO()
     try:
-        client.download_fileobj(raw_path, buf)
+        data = _download_webdav_bytes(client, raw_path)
     except Exception as e:
         logger.warning("Photo fetch failed for %s: %s", raw_path, e)
         raise HTTPException(404, "Could not load image from WebDAV") from e
-
-    data = buf.getvalue()
     if thumb:
         try:
             data = _thumb_bytes(data, source=raw_path)
