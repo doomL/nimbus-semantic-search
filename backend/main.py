@@ -80,6 +80,11 @@ FRONTEND_INDEX = _resolve_frontend_index()
 FRONTEND_DIR = FRONTEND_INDEX.parent
 _ASSETS_DIR = FRONTEND_DIR / "assets"
 
+_REPO_ROOT = FRONTEND_INDEX.parent.parent if FRONTEND_INDEX.parent.name == "frontend" else BASE_DIR
+_LICENSE_FILE = BASE_DIR / "LICENSE"
+if not _LICENSE_FILE.is_file():
+    _LICENSE_FILE = _REPO_ROOT / "LICENSE"
+
 index_state: Dict[str, Any] = {
     "in_progress": False,
     "total": 0,
@@ -392,6 +397,14 @@ def serve_index() -> FileResponse:
     if not FRONTEND_INDEX.is_file():
         raise HTTPException(500, "frontend/index.html not found")
     return FileResponse(FRONTEND_INDEX)
+
+
+@app.get("/LICENSE", response_class=FileResponse)
+def serve_license() -> FileResponse:
+    """Serve AGPL text at a stable URL (footer link)."""
+    if not _LICENSE_FILE.is_file():
+        raise HTTPException(404, "LICENSE not found")
+    return FileResponse(_LICENSE_FILE, media_type="text/plain; charset=utf-8")
 
 
 @app.post("/index")
