@@ -6,6 +6,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 from typing import Generator, List, Optional, Tuple
 
 import sqlite_vec
@@ -69,6 +70,11 @@ def init_db(db_path: str) -> sqlite3.Connection:
             tag TEXT PRIMARY KEY,
             count INTEGER NOT NULL,
             updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         );
         """
     )
@@ -165,6 +171,44 @@ def search_similar(
     for webdav_path, filename, dist in rows:
         out.append((str(webdav_path), str(filename), float(dist)))
     return out
+
+
+_INDEX_ROOTS_KEY = "index_roots_json"
+
+
+def get_index_roots(conn: sqlite3.Connection) -> List[str]:
+    """
+    Folder paths to crawl (each must start with /). Empty list or ["/"] means
+    the entire WebDAV tree (default — same as before this setting existed).
+    """
+    row = conn.execute(
+        "SELECT value FROM app_settings WHERE key = ?", (_INDEX_ROOTS_KEY,)
+    ).fetchone()
+    if not row:
+        return []
+    try:
+        data = json.loads(row[0])
+    except (json.JSONDecodeError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    out: List[str] = []
+    for x in data:
+        if isinstance(x, str) and x.strip():
+            out.append(x.strip())
+    return out
+
+
+def set_index_roots(conn: sqlite3.Connection, roots: List[str]) -> None:
+    """Persist index roots; pass [] or [\"/\"] to index the full library."""
+    payload = json.dumps(roots, ensure_ascii=False)
+    conn.execute(
+        """
+        INSERT INTO app_settings (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """,
+        (_INDEX_ROOTS_KEY, payload),
+    )
 
 
 def list_recent_photos(

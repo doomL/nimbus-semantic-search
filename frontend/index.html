@@ -737,6 +737,160 @@
       transform: translateX(-50%) translateY(0);
       opacity: 1;
     }
+    .index-scope {
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .index-scope summary {
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      color: var(--text);
+    }
+    .index-scope summary::-webkit-details-marker { display: none; }
+    .index-scope summary::after {
+      content: "▸";
+      color: var(--muted);
+      font-size: 0.75rem;
+      transition: transform 0.2s;
+    }
+    .index-scope[open] summary::after { transform: rotate(90deg); }
+    .index-scope .scope-body {
+      padding: 0 1rem 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .index-scope .hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0.75rem 0;
+      line-height: 1.45;
+    }
+    .scope-mode {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-bottom: 0.85rem;
+    }
+    .scope-mode label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+    .folder-browser {
+      font-size: 0.84rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.75rem;
+      background: var(--bg0);
+    }
+    .folder-browser .fb-nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      margin-bottom: 0.5rem;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .folder-browser .fb-nav button {
+      background: none;
+      border: none;
+      color: var(--accent2);
+      font: inherit;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .folder-browser .fb-list {
+      max-height: 11rem;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .folder-browser .fb-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.25rem 0;
+    }
+    .folder-browser .fb-row span {
+      word-break: break-all;
+      color: var(--text);
+    }
+    .folder-browser .fb-row button {
+      flex-shrink: 0;
+      font-size: 0.78rem;
+      padding: 0.25rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .folder-browser .fb-row button:hover { border-color: var(--accent); }
+    .selected-roots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.65rem;
+      min-height: 1.5rem;
+    }
+    .selected-roots .chip-root {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      background: var(--chip-bg);
+      border: 1px solid var(--chip-border);
+      max-width: 100%;
+    }
+    .selected-roots .chip-root span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 14rem;
+    }
+    .selected-roots .chip-root button {
+      border: none;
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 0.15rem;
+    }
+    .selected-roots .chip-root button:hover { color: var(--danger); }
+    .scope-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .scope-actions .scope-msg {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .scope-actions .scope-msg.ok { color: var(--accent); }
+    .scope-actions .scope-msg.err { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -779,6 +933,36 @@
     <p class="index-empty-callout hidden" id="indexEmptyCallout" role="status">
       <strong>No photos indexed yet.</strong> Click <strong>Index photos</strong> above so Nimbus can build embeddings from your WebDAV library. You can leave this page while it runs.
     </p>
+
+    <details class="index-scope" id="indexScopeDetails">
+      <summary><span id="indexScopeSummary">Index scope — entire library</span></summary>
+      <div class="scope-body">
+        <p class="hint">
+          By default the whole WebDAV tree is scanned. To limit indexing, choose folders below. Existing indexed photos are kept; the next run only considers images under the selected paths.
+        </p>
+        <div class="scope-mode">
+          <label>
+            <input type="radio" name="indexScopeMode" value="all" id="scopeModeAll" checked />
+            Entire library (all folders)
+          </label>
+          <label>
+            <input type="radio" name="indexScopeMode" value="pick" id="scopeModePick" />
+            Only selected folders
+          </label>
+        </div>
+        <div id="folderPickerBlock" class="hidden">
+          <div class="selected-roots" id="selectedRoots" aria-label="Selected folders"></div>
+          <div class="folder-browser" id="folderBrowser">
+            <div class="fb-nav" id="folderBreadcrumb"></div>
+            <div class="fb-list" id="folderList">Loading…</div>
+          </div>
+        </div>
+        <div class="scope-actions">
+          <button type="button" class="btn btn-ghost" id="saveScopeBtn">Save index scope</button>
+          <span class="scope-msg" id="scopeSaveMsg" hidden></span>
+        </div>
+      </div>
+    </details>
 
     <div class="status-panel" id="statusPanel">Loading status…</div>
     <div class="index-progress-wrap" id="indexProgressWrap" hidden>
@@ -918,6 +1102,195 @@
     let statusPollCount = 0;
     let statusIntervalId = null;
     let lastIndexingInProgress = false;
+
+    let indexScopeRoots = new Set();
+    let currentBrowsePath = "/";
+    let lastAppliedScopeJson = "";
+
+    function normalizeScopePath(p) {
+      let s = (p || "").trim();
+      if (!s) return "/";
+      if (!s.startsWith("/")) s = "/" + s;
+      return s.replace(/\/+$/, "") || "/";
+    }
+
+    function updateScopeSummaryText() {
+      const entire = $("scopeModeAll").checked;
+      const el = $("indexScopeSummary");
+      if (entire) {
+        el.textContent = "Index scope — entire library";
+        return;
+      }
+      const n = indexScopeRoots.size;
+      el.textContent =
+        n === 0
+          ? "Index scope — pick folders below"
+          : "Index scope — " + n + " folder" + (n === 1 ? "" : "s");
+    }
+
+    function renderSelectedRoots() {
+      const wrap = $("selectedRoots");
+      wrap.innerHTML = "";
+      const sorted = Array.from(indexScopeRoots).sort();
+      sorted.forEach((path) => {
+        const chip = document.createElement("span");
+        chip.className = "chip-root";
+        const span = document.createElement("span");
+        span.textContent = path;
+        span.title = path;
+        const rm = document.createElement("button");
+        rm.type = "button";
+        rm.setAttribute("aria-label", "Remove folder");
+        rm.textContent = "×";
+        rm.addEventListener("click", () => {
+          indexScopeRoots.delete(path);
+          renderSelectedRoots();
+          updateScopeSummaryText();
+        });
+        chip.appendChild(span);
+        chip.appendChild(rm);
+        wrap.appendChild(chip);
+      });
+    }
+
+    function applyIndexScopeFromStatus(s) {
+      const roots = Array.isArray(s.index_roots) ? s.index_roots : [];
+      const entire = s.entire_library === true || roots.length === 0;
+      const key = JSON.stringify({ r: roots.slice().sort(), e: entire });
+      if (key === lastAppliedScopeJson) {
+        updateScopeSummaryText();
+        return;
+      }
+      lastAppliedScopeJson = key;
+      indexScopeRoots = new Set(roots.map(normalizeScopePath).filter((x) => x !== "/"));
+      $("scopeModeAll").checked = entire;
+      $("scopeModePick").checked = !entire;
+      $("folderPickerBlock").classList.toggle("hidden", entire);
+      renderSelectedRoots();
+      updateScopeSummaryText();
+      if (!entire) {
+        currentBrowsePath = "/";
+        loadFolderList(currentBrowsePath);
+      }
+    }
+
+    async function loadFolderList(parentPath) {
+      const listEl = $("folderList");
+      const crumbEl = $("folderBreadcrumb");
+      parentPath = normalizeScopePath(parentPath);
+      currentBrowsePath = parentPath;
+      listEl.textContent = "Loading…";
+      try {
+        const u = new URL("/webdav/folders", window.location.origin);
+        u.searchParams.set("parent", parentPath);
+        const r = await fetch(u.toString());
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        const folders = data.folders || [];
+        crumbEl.innerHTML = "";
+        const rootBtn = document.createElement("button");
+        rootBtn.type = "button";
+        rootBtn.textContent = "Root";
+        rootBtn.addEventListener("click", () => loadFolderList("/"));
+        crumbEl.appendChild(rootBtn);
+        if (parentPath !== "/") {
+          crumbEl.appendChild(document.createTextNode(" / "));
+          const parts = parentPath.replace(/^\/+/, "").split("/").filter(Boolean);
+          let acc = "";
+          parts.forEach((seg, i) => {
+            acc += "/" + seg;
+            const pathHere = acc;
+            const isLast = i === parts.length - 1;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = seg;
+            btn.addEventListener("click", () => loadFolderList(pathHere));
+            crumbEl.appendChild(btn);
+            if (!isLast) crumbEl.appendChild(document.createTextNode(" / "));
+          });
+        }
+        listEl.innerHTML = "";
+        if (folders.length === 0) {
+          listEl.textContent = "No subfolders here.";
+          return;
+        }
+        folders.forEach((f) => {
+          const row = document.createElement("div");
+          row.className = "fb-row";
+          const name = document.createElement("span");
+          name.textContent = f.name;
+          const actions = document.createElement("div");
+          actions.style.display = "flex";
+          actions.style.gap = "0.35rem";
+          const addBtn = document.createElement("button");
+          addBtn.type = "button";
+          addBtn.textContent = "Add";
+          addBtn.title = "Index this folder and its subfolders";
+          addBtn.addEventListener("click", () => {
+            indexScopeRoots.add(normalizeScopePath(f.path));
+            renderSelectedRoots();
+            updateScopeSummaryText();
+          });
+          const openBtn = document.createElement("button");
+          openBtn.type = "button";
+          openBtn.textContent = "Open";
+          openBtn.addEventListener("click", () => loadFolderList(f.path));
+          actions.appendChild(openBtn);
+          actions.appendChild(addBtn);
+          row.appendChild(name);
+          row.appendChild(actions);
+          listEl.appendChild(row);
+        });
+      } catch (e) {
+        listEl.textContent = "Could not list folders.";
+      }
+    }
+
+    $("scopeModeAll").addEventListener("change", () => {
+      if ($("scopeModeAll").checked) {
+        $("folderPickerBlock").classList.add("hidden");
+      }
+      updateScopeSummaryText();
+    });
+    $("scopeModePick").addEventListener("change", () => {
+      if ($("scopeModePick").checked) {
+        $("folderPickerBlock").classList.remove("hidden");
+        loadFolderList(currentBrowsePath || "/");
+      }
+      updateScopeSummaryText();
+    });
+
+    $("saveScopeBtn").addEventListener("click", async () => {
+      const msg = $("scopeSaveMsg");
+      msg.hidden = true;
+      const entire = $("scopeModeAll").checked;
+      const body = entire
+        ? { index_roots: [] }
+        : { index_roots: Array.from(indexScopeRoots) };
+      if (!entire && body.index_roots.length === 0) {
+        msg.textContent = "Pick at least one folder, or switch to entire library.";
+        msg.className = "scope-msg err";
+        msg.hidden = false;
+        return;
+      }
+      try {
+        const r = await fetch("/index/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error();
+        msg.textContent = "Saved.";
+        msg.className = "scope-msg ok";
+        msg.hidden = false;
+        lastAppliedScopeJson = "";
+        await refreshStatus();
+      } catch (e) {
+        msg.textContent = "Could not save.";
+        msg.className = "scope-msg err";
+        msg.hidden = false;
+      }
+    });
 
     const PLACEHOLDER_THUMB =
       "data:image/svg+xml," +
@@ -1230,6 +1603,12 @@
           );
           loadRecentPhotos();
         }
+        let scopeLabel = "entire library";
+        if (s.in_progress && s.index_roots_effective && s.index_roots_effective.length) {
+          scopeLabel = s.index_roots_effective.join(", ");
+        } else if (s.index_roots && s.index_roots.length > 0) {
+          scopeLabel = s.index_roots.join(", ");
+        }
         const parts = [
           "<strong>Indexed</strong>: " + s.indexed,
           "<strong>Files (last run)</strong>: " + s.total,
@@ -1237,6 +1616,7 @@
           "<strong>Skipped</strong>: " + s.skipped,
           "<strong>Errors</strong>: " + s.errors,
           "<strong>Indexing</strong>: " + (s.in_progress ? "yes" : "no"),
+          "<strong>Scope</strong>: " + escapeHtml(scopeLabel),
         ];
         let html = parts.join(" &nbsp;|&nbsp; ");
         html +=
@@ -1249,6 +1629,7 @@
         }
         el.innerHTML = html;
         updateIndexProgress(s);
+        applyIndexScopeFromStatus(s);
         $("indexBtn").disabled = !!s.in_progress;
         setStatusPolling(!!s.in_progress);
         // Tag list is expensive; reload when the library size changes or on first poll.

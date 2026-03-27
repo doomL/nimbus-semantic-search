@@ -12,16 +12,16 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from urllib.parse import unquote
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
 from PIL import Image
 from webdav4.client import Client
 
@@ -46,12 +46,14 @@ from clip_model import get_clip  # noqa: E402  — load env before heavy imports
 from db import (  # noqa: E402
     count_photos,
     get_connection,
+    get_index_roots,
     init_db,
     list_index_failures,
     list_recent_photos,
+    set_index_roots,
 )
 from image_io import load_rgb_image  # noqa: E402
-from indexer import run_index_job  # noqa: E402
+from indexer import list_immediate_subdirs, run_index_job  # noqa: E402
 from search import search_photos  # noqa: E402
 from tag_stats import get_popular_tags, recompute_library_tags  # noqa: E402
 
@@ -78,6 +80,7 @@ index_state: Dict[str, Any] = {
     "skipped": 0,
     "errors": 0,
     "last_error": None,
+    "index_roots_effective": None,
 }
 state_lock = threading.Lock()
 db_lock = threading.Lock()
@@ -269,6 +272,85 @@ def _normalize_webdav_path(path: str) -> str:
     return raw
 
 
+def _folder_basename(path: str) -> str:
+    p = path.rstrip("/")
+    return p.rsplit("/", 1)[-1] if p else ""
+
+
+def _prepare_index_roots(raw: List[str]) -> List[str]:
+    """Normalize roots; empty result means index the entire library."""
+    seen: set[str] = set()
+    out: List[str] = []
+    for p in raw[:200]:
+        if not isinstance(p, str) or not p.strip():
+            continue
+        n = _normalize_webdav_path(p.strip())
+        n = n.rstrip("/") or "/"
+        if n == "/":
+            continue
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+class IndexSettingsBody(BaseModel):
+    """Empty ``index_roots`` indexes the entire WebDAV tree (default)."""
+
+    index_roots: List[str] = Field(default_factory=list, max_length=200)
+
+
+@app.get("/index/settings")
+def get_index_settings() -> Dict[str, Any]:
+    with db_lock:
+        roots = get_index_roots(get_connection())
+    return {
+        "index_roots": roots,
+        "entire_library": len(roots) == 0,
+    }
+
+
+@app.post("/index/settings")
+def post_index_settings(body: IndexSettingsBody = Body(...)) -> Dict[str, Any]:
+    roots = _prepare_index_roots(body.index_roots)
+    with db_lock:
+        conn = get_connection()
+        set_index_roots(conn, roots)
+        conn.commit()
+    return {
+        "index_roots": roots,
+        "entire_library": len(roots) == 0,
+    }
+
+
+@app.get("/webdav/folders")
+def webdav_folders(
+    parent: str = Query(
+        "/",
+        max_length=8192,
+        description="WebDAV directory to list (immediate children only)",
+    ),
+) -> Dict[str, Any]:
+    raw = parent.strip() if parent else "/"
+    if not raw:
+        raw = "/"
+    try:
+        parent_path = _normalize_webdav_path(raw)
+    except HTTPException:
+        raise
+    base = _env("PCLOUD_WEBDAV_URL", "https://ewebdav.pcloud.com").rstrip("/")
+    user = _env("PCLOUD_USERNAME")
+    password = _env("PCLOUD_PASSWORD")
+    client = Client(base, auth=(user, password), retry=True)
+    try:
+        dirs = list_immediate_subdirs(client, parent_path)
+    except Exception as e:
+        logger.warning("webdav/folders failed for %s: %s", parent_path, e)
+        raise HTTPException(502, "Could not list WebDAV folder") from e
+    items = [{"path": d, "name": _folder_basename(d)} for d in dirs]
+    return {"parent": parent_path, "folders": items}
+
+
 @app.get("/health")
 def health() -> Dict[str, Any]:
     """Liveness + basic DB visibility for monitoring and the web UI."""
@@ -321,6 +403,7 @@ def index_status() -> Dict[str, Any]:
         snap = dict(index_state)
     with db_lock:
         indexed = count_photos(get_connection())
+        roots_stored = get_index_roots(get_connection())
     return {
         "total": int(snap.get("total", 0)),
         "indexed": indexed,
@@ -329,6 +412,9 @@ def index_status() -> Dict[str, Any]:
         "skipped": int(snap.get("skipped", 0)),
         "indexed_this_run": int(snap.get("indexed_this_run", 0)),
         "last_error": snap.get("last_error"),
+        "index_roots": roots_stored,
+        "entire_library": len(roots_stored) == 0,
+        "index_roots_effective": snap.get("index_roots_effective"),
     }
 
 
