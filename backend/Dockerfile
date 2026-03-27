@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY backend/ /app/
 COPY frontend/ /app/frontend/
+COPY LICENSE /app/LICENSE
 
 ENV DB_PATH=/app/data/photos.db
 ENV TORCH_HOME=/app/.cache/torch

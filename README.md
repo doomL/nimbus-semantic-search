@@ -11,7 +11,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 </div>
 
@@ -181,4 +181,4 @@ Use a **strong password**; Basic Auth sends credentials **Base64-encoded** (not 
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+This project is released under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). It is stricter than permissive licenses like MIT: if you modify this program and run it as a network service, you must generally offer corresponding source to users who interact with it over the network. Read the full license and consider legal advice for commercial use.

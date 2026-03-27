@@ -54,6 +54,9 @@
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
     body {
       margin: 0;
       min-height: 100vh;
@@ -528,12 +531,23 @@
     :root[data-theme="light"] dialog.lightbox::backdrop {
       background: rgba(15, 23, 42, 0.45);
     }
-    .lightbox-close {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 2;
+    .lightbox-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem 0.5rem;
+      padding: 0.5rem 0.65rem;
+      border-bottom: 1px solid var(--border);
       background: var(--surface);
+      border-radius: 12px 12px 0 0;
+    }
+    .lightbox-toolbar .lightbox-toolbar-spacer {
+      flex: 1;
+      min-width: 0.5rem;
+    }
+    .lightbox-close {
+      position: static;
+      background: var(--surface2);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -543,18 +557,197 @@
       font-size: 0.82rem;
       cursor: pointer;
     }
-    .lightbox-close:hover { background: var(--surface2); }
-    #lightboxImg {
+    .lightbox-close:hover { background: var(--surface); }
+    .lightbox-download,
+    .lightbox-share,
+    .lightbox-copy-path,
+    .lightbox-zoom-toggle {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .lightbox-download:hover,
+    .lightbox-share:hover,
+    .lightbox-copy-path:hover,
+    .lightbox-zoom-toggle:hover {
+      background: var(--surface);
+    }
+    .lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 3;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 1.25rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px var(--shadow);
+    }
+    .lightbox-nav:hover { background: var(--surface2); }
+    .lightbox-nav:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .lightbox-nav--prev { left: 0.5rem; }
+    .lightbox-nav--next { right: 0.5rem; }
+    .lightbox-body {
+      position: relative;
+      margin: 0;
+      padding: 0;
+      min-height: 120px;
+    }
+    .lightbox-viewport {
+      overflow: auto;
       max-width: 92vw;
-      max-height: 88vh;
+      max-height: min(78vh, 720px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      cursor: zoom-in;
+      touch-action: none;
+    }
+    .lightbox-viewport.lightbox-viewport--zoomed {
+      cursor: grab;
+    }
+    .lightbox-viewport.lightbox-viewport--zoomed:active {
+      cursor: grabbing;
+    }
+    #lightboxImg {
+      max-width: 100%;
+      max-height: min(76vh, 700px);
+      width: auto;
+      height: auto;
       display: block;
       vertical-align: middle;
+      transform-origin: center center;
+      transition: transform 0.2s ease;
+      user-select: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #lightboxImg { transition: none; }
+    }
+    .lightbox-viewport.lightbox-viewport--zoomed #lightboxImg {
+      max-width: none;
+      max-height: none;
+    }
+    /* Avoid flashing the previous decode while the new full-size photo loads */
+    #lightboxImg.lightbox-img-loading {
+      opacity: 0;
+    }
+    .lightbox-loading-ring {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .lightbox-loading-ring[hidden] { display: none !important; }
+    .lightbox-loading-ring::after {
+      content: "";
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      animation: lightbox-spin 0.75s linear infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .lightbox-loading-ring::after { animation: none; border-top-color: var(--border); }
+    }
+    @keyframes lightbox-spin {
+      to { transform: rotate(360deg); }
+    }
+    .lightbox-meta {
+      padding: 0.5rem 0.85rem 0.65rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 0 0 12px 12px;
+      max-width: 92vw;
+    }
+    .lightbox-meta code {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.76rem;
+      word-break: break-all;
+      color: var(--text);
+    }
+    .lightbox-meta-row { margin: 0.15rem 0; }
+    .lightbox-panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      padding: 0 0.65rem 0.65rem;
+      max-width: 92vw;
+    }
+    @media (max-width: 640px) {
+      .lightbox-panels { grid-template-columns: 1fr; }
+    }
+    .lightbox-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg1);
+      padding: 0.5rem 0.65rem;
+      min-height: 4rem;
+    }
+    .lightbox-panel h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .lightbox-panel .lightbox-panel-inner {
+      font-size: 0.8rem;
+      max-height: 140px;
+      overflow: auto;
+    }
+    .lightbox-panel a.lightbox-mini {
+      display: block;
+      color: var(--accent2);
+      text-decoration: none;
+      margin: 0.2rem 0;
+      cursor: pointer;
+      word-break: break-all;
+    }
+    .lightbox-panel a.lightbox-mini:hover { text-decoration: underline; }
+    .lightbox-panel .lightbox-panel-empty {
+      color: var(--muted);
+      font-size: 0.8rem;
     }
     .hidden { display: none !important; }
     .btn:focus-visible,
     .chip:focus-visible,
     .theme-toggle:focus-visible,
-    .btn-text:focus-visible {
+    .btn-text:focus-visible,
+    .lightbox-download:focus-visible,
+    .lightbox-share:focus-visible,
+    .lightbox-copy-path:focus-visible,
+    .lightbox-zoom-toggle:focus-visible,
+    .lightbox-nav:focus-visible,
+    .lightbox-close:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 3px;
     }
@@ -736,6 +929,11 @@
     .toast.toast--show {
       transform: translateX(-50%) translateY(0);
       opacity: 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .toast {
+        transition: none;
+      }
     }
     .index-scope {
       margin-bottom: 1.25rem;
@@ -1028,18 +1226,56 @@
     </div>
 
     <footer class="site-footer">
-      <p><strong>Nimbus</strong> — semantic search for a WebDAV photo library. Not affiliated with pCloud AG. MIT licensed.</p>
+      <p><strong>Nimbus</strong> — semantic search for a WebDAV photo library. Not affiliated with pCloud AG. Licensed under <a href="/LICENSE" rel="license">AGPL-3.0</a>.</p>
       <span class="footer-version" id="footerVersion" hidden></span>
     </footer>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <dialog id="lightbox" class="lightbox">
-    <form method="dialog" style="margin:0;position:relative;">
-      <button type="submit" class="lightbox-close">Close</button>
-      <img id="lightboxImg" alt="" />
-    </form>
+  <dialog id="lightbox" class="lightbox" aria-label="Photo viewer">
+    <div class="lightbox-toolbar">
+      <a id="lightboxDownload" class="lightbox-download" href="#" download>Download</a>
+      <button type="button" class="lightbox-share" id="lightboxShare">Share</button>
+      <button type="button" class="lightbox-copy-path" id="lightboxCopyPath" title="Copy WebDAV path">
+        Copy path
+      </button>
+      <button type="button" class="lightbox-zoom-toggle" id="lightboxZoomToggle" title="Toggle zoom (Z)">
+        1:1
+      </button>
+      <span class="lightbox-toolbar-spacer"></span>
+      <button type="button" class="lightbox-close" id="lightboxCloseBtn">Close</button>
+    </div>
+    <div class="lightbox-body">
+      <button type="button" class="lightbox-nav lightbox-nav--prev" id="lightboxPrev" aria-label="Previous photo">
+        ‹
+      </button>
+      <button type="button" class="lightbox-nav lightbox-nav--next" id="lightboxNext" aria-label="Next photo">
+        ›
+      </button>
+      <div class="lightbox-viewport" id="lightboxViewport">
+        <div class="lightbox-loading-ring" id="lightboxLoading" hidden></div>
+        <img id="lightboxImg" alt="" draggable="false" />
+      </div>
+    </div>
+    <div class="lightbox-meta" id="lightboxMeta">
+      <div class="lightbox-meta-row" id="lightboxMetaDims">—</div>
+      <div class="lightbox-meta-row"><code id="lightboxMetaPath">—</code></div>
+    </div>
+    <div class="lightbox-panels">
+      <div class="lightbox-panel">
+        <h4>Similar</h4>
+        <div class="lightbox-panel-inner" id="lightboxSimilar">
+          <span class="lightbox-panel-empty">Loading…</span>
+        </div>
+      </div>
+      <div class="lightbox-panel">
+        <h4>Same folder</h4>
+        <div class="lightbox-panel-inner" id="lightboxFolder">
+          <span class="lightbox-panel-empty">Loading…</span>
+        </div>
+      </div>
+    </div>
   </dialog>
 
   <script>
@@ -1050,6 +1286,7 @@
     const LEGACY_THEME = atob("cGNsb3VkLWNsaXAtdGhlbWU=");
     const LEGACY_RECENT = atob("cGNsb3VkLWNsaXAtcmVjZW50");
     const MAX_RECENT = 10;
+    const SESSION_SEARCH_KEY = "nimbus-session-search";
 
     function migrateStorage() {
       if (!localStorage.getItem(THEME_KEY) && localStorage.getItem(LEGACY_THEME)) {
@@ -1331,12 +1568,231 @@
       return img;
     }
 
-    function openLightboxForPath(path) {
-      $("lightboxImg").src = photoUrl(path, false);
-      $("lightbox").showModal();
+    let lightboxOpenSeq = 0;
+    let lightboxGallery = [];
+    let lightboxIndex = 0;
+    let lightboxZoom = false;
+    const prefetchedFull = new Set();
+
+    function prefetchFullPhoto(path) {
+      if (!path || prefetchedFull.has(path)) return;
+      prefetchedFull.add(path);
+      const im = new Image();
+      im.src = photoUrl(path, false);
     }
 
-    function appendResultCards(grid, items, weak) {
+    document.addEventListener(
+      "pointerenter",
+      (e) => {
+        const a = e.target.closest && e.target.closest("a.open-full");
+        if (!a || !a.dataset.path) return;
+        prefetchFullPhoto(a.dataset.path);
+      },
+      true
+    );
+
+    function resetLightboxZoom() {
+      lightboxZoom = false;
+      const vp = $("lightboxViewport");
+      const btn = $("lightboxZoomToggle");
+      vp.classList.remove("lightbox-viewport--zoomed");
+      vp.scrollLeft = 0;
+      vp.scrollTop = 0;
+      btn.textContent = "1:1";
+    }
+
+    function setLightboxZoom(on) {
+      const vp = $("lightboxViewport");
+      const btn = $("lightboxZoomToggle");
+      lightboxZoom = !!on;
+      if (lightboxZoom) {
+        vp.classList.add("lightbox-viewport--zoomed");
+        btn.textContent = "Fit";
+      } else {
+        vp.classList.remove("lightbox-viewport--zoomed");
+        btn.textContent = "1:1";
+      }
+    }
+
+    function toggleLightboxZoom() {
+      setLightboxZoom(!lightboxZoom);
+    }
+
+    function updateLightboxNav() {
+      const n = lightboxGallery.length;
+      const prev = $("lightboxPrev");
+      const next = $("lightboxNext");
+      prev.disabled = n <= 1 || lightboxIndex <= 0;
+      next.disabled = n <= 1 || lightboxIndex >= n - 1;
+    }
+
+    function lightboxNavigate(delta) {
+      const n = lightboxGallery.length;
+      if (n <= 1) return;
+      const j = lightboxIndex + delta;
+      if (j < 0 || j >= n) return;
+      lightboxIndex = j;
+      applyLightboxPath(lightboxGallery[lightboxIndex]);
+    }
+
+    async function loadLightboxMeta(path, seq) {
+      $("lightboxMetaDims").textContent = "Loading dimensions…";
+      try {
+        const u = new URL("/photo/meta", window.location.origin);
+        u.searchParams.set("path", path);
+        const r = await fetch(u.toString());
+        if (!r.ok) throw new Error();
+        const m = await r.json();
+        if (seq !== lightboxOpenSeq) return;
+        let line = "";
+        if (m.width && m.height) {
+          line = m.width + " × " + m.height + " px";
+        } else {
+          line = "—";
+        }
+        if (m.format) line += (line === "—" ? "" : " · ") + m.format;
+        if (m.indexed_at) {
+          try {
+            line +=
+              (line ? " · " : "") + "Indexed " + new Date(m.indexed_at).toLocaleString();
+          } catch (e) {
+            line += (line ? " · " : "") + "Indexed " + m.indexed_at;
+          }
+        }
+        $("lightboxMetaDims").textContent = line || "—";
+      } catch (e) {
+        if (seq !== lightboxOpenSeq) return;
+        $("lightboxMetaDims").textContent = "Could not load file details.";
+      }
+    }
+
+    async function loadLightboxSidePanels(path, seq) {
+      const simEl = $("lightboxSimilar");
+      const foldEl = $("lightboxFolder");
+      simEl.innerHTML = '<span class="lightbox-panel-empty">Loading…</span>';
+      foldEl.innerHTML = '<span class="lightbox-panel-empty">Loading…</span>';
+
+      const simP = (async () => {
+        try {
+          const u = new URL("/photos/similar", window.location.origin);
+          u.searchParams.set("path", path);
+          u.searchParams.set("k", "12");
+          const r = await fetch(u.toString());
+          if (!r.ok) throw new Error();
+          return await r.json();
+        } catch (e) {
+          return null;
+        }
+      })();
+
+      const foldP = (async () => {
+        try {
+          const u = new URL("/photos/folder", window.location.origin);
+          u.searchParams.set("path", path);
+          u.searchParams.set("limit", "24");
+          const r = await fetch(u.toString());
+          if (!r.ok) throw new Error();
+          return await r.json();
+        } catch (e) {
+          return null;
+        }
+      })();
+
+      const simData = await simP;
+      if (seq !== lightboxOpenSeq) return;
+
+      const foldData = await foldP;
+      if (seq !== lightboxOpenSeq) return;
+
+      if (!simData || !simData.items || simData.items.length === 0) {
+        simEl.innerHTML =
+          '<span class="lightbox-panel-empty">No similar photos found.</span>';
+      } else {
+        const simGallery = simData.items.map((x) => x.webdav_path);
+        simEl.innerHTML = "";
+        simData.items.forEach((it) => {
+          const a = document.createElement("a");
+          a.className = "lightbox-mini";
+          a.href = "#";
+          a.textContent = it.filename + " · " + (it.score * 100).toFixed(0) + "%";
+          a.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            openLightboxForPath(it.webdav_path, { gallery: simGallery });
+          });
+          simEl.appendChild(a);
+        });
+      }
+
+      if (!foldData || !foldData.items || foldData.items.length === 0) {
+        foldEl.innerHTML =
+          '<span class="lightbox-panel-empty">No other photos in this folder.</span>';
+      } else {
+        const foldGallery = foldData.items.map((x) => x.webdav_path);
+        foldEl.innerHTML = "";
+        foldData.items.forEach((it) => {
+          const a = document.createElement("a");
+          a.className = "lightbox-mini";
+          a.href = "#";
+          a.textContent = it.filename;
+          a.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            openLightboxForPath(it.webdav_path, { gallery: foldGallery });
+          });
+          foldEl.appendChild(a);
+        });
+      }
+    }
+
+    function applyLightboxPath(path) {
+      const img = $("lightboxImg");
+      const url = photoUrl(path, false);
+      const dl = $("lightboxDownload");
+      dl.href = url;
+      dl.setAttribute("download", suggestedPhotoFilename(path));
+      $("lightboxMetaPath").textContent = path;
+      resetLightboxZoom();
+      const seq = ++lightboxOpenSeq;
+      img.classList.add("lightbox-img-loading");
+      $("lightboxLoading").hidden = false;
+      img.src = url;
+      const dlg = $("lightbox");
+      if (!dlg.open) dlg.showModal();
+      updateLightboxNav();
+      loadLightboxMeta(path, seq);
+      loadLightboxSidePanels(path, seq);
+
+      const reveal = () => {
+        if (seq !== lightboxOpenSeq) return;
+        img.classList.remove("lightbox-img-loading");
+        $("lightboxLoading").hidden = true;
+      };
+      if (img.complete && img.naturalWidth) {
+        reveal();
+      } else {
+        img.addEventListener("load", reveal, { once: true });
+        img.addEventListener("error", reveal, { once: true });
+      }
+    }
+
+    function openLightboxForPath(path, opts) {
+      opts = opts || {};
+      const g = opts.gallery;
+      if (Array.isArray(g) && g.length > 0) {
+        lightboxGallery = g.slice();
+        const ix = lightboxGallery.indexOf(path);
+        lightboxIndex = ix >= 0 ? ix : 0;
+      } else {
+        lightboxGallery = [path];
+        lightboxIndex = 0;
+      }
+      applyLightboxPath(path);
+    }
+
+    function appendResultCards(grid, items, weak, allGalleryPaths) {
+      const gallery =
+        Array.isArray(allGalleryPaths) && allGalleryPaths.length > 0
+          ? allGalleryPaths
+          : items.map((x) => x.webdav_path);
       for (const item of items) {
         const card = document.createElement("div");
         card.className = "card" + (weak ? " card--weak" : "");
@@ -1360,7 +1816,7 @@
         a.appendChild(meta);
         a.addEventListener("click", (ev) => {
           ev.preventDefault();
-          openLightboxForPath(a.dataset.path);
+          openLightboxForPath(a.dataset.path, { gallery });
         });
         card.appendChild(a);
         grid.appendChild(card);
@@ -1395,6 +1851,7 @@
           return;
         }
         sec.hidden = false;
+        const galleryPaths = items.map((it) => it.webdav_path);
         for (const item of items) {
           const card = document.createElement("div");
           card.className = "card";
@@ -1419,7 +1876,7 @@
           a.appendChild(meta);
           a.addEventListener("click", (ev) => {
             ev.preventDefault();
-            openLightboxForPath(a.dataset.path);
+            openLightboxForPath(a.dataset.path, { gallery: galleryPaths });
           });
           card.appendChild(a);
           grid.appendChild(card);
@@ -1671,6 +2128,13 @@
       return u.toString();
     }
 
+    /** Last path segment for suggested download filename (WebDAV paths use `/`). */
+    function suggestedPhotoFilename(path) {
+      const seg = path.split("/").filter(Boolean).pop();
+      if (!seg) return "photo";
+      return seg.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+    }
+
     function skeletonResultsHtml() {
       let cards = "";
       for (let i = 0; i < 8; i++) {
@@ -1691,6 +2155,7 @@
         const h = await r.json();
         if (h.version) {
           let t = "API v" + h.version;
+          if (h.license) t += " · " + h.license;
           if (typeof h.indexed === "number") t += " · " + h.indexed + " photos indexed";
           if (h.database !== "ok") t += " · DB: " + (h.database || "?");
           if (typeof h.auto_index_interval_hours === "number" && h.auto_index_interval_hours > 0) {
@@ -1713,6 +2178,11 @@
       const q = $("q").value.trim();
       const container = $("results");
       if (!q) {
+        try {
+          sessionStorage.removeItem(SESSION_SEARCH_KEY);
+        } catch (e) {
+          /* ignore */
+        }
         $("resultsBlock").classList.add("hidden");
         $("welcomeBlock").classList.remove("hidden");
         $("discoverSection").classList.remove("hidden");
@@ -1726,8 +2196,14 @@
       $("recentSection").hidden = true;
       $("resultsQuery").textContent = '"' + q + '"';
       container.innerHTML = skeletonResultsHtml();
+      const smoothScroll =
+        typeof window.matchMedia === "function" &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       requestAnimationFrame(() => {
-        $("resultsBlock").scrollIntoView({ behavior: "smooth", block: "start" });
+        $("resultsBlock").scrollIntoView({
+          behavior: smoothScroll ? "smooth" : "auto",
+          block: "start",
+        });
       });
       saveRecent(q);
       renderRecent();
@@ -1751,11 +2227,22 @@
               '<p class="empty" role="status">No photos matched that phrase. Try different words, pick a suggestion below, or index if your library is new.</p>';
             return;
           }
+          const galleryPaths = []
+            .concat(strong.map((x) => x.webdav_path))
+            .concat(weak.map((x) => x.webdav_path));
+          try {
+            sessionStorage.setItem(
+              SESSION_SEARCH_KEY,
+              JSON.stringify({ q: q, gallery: galleryPaths })
+            );
+          } catch (e) {
+            /* ignore */
+          }
           container.innerHTML = "";
           if (strong.length > 0) {
             const grid = document.createElement("div");
             grid.className = "grid";
-            appendResultCards(grid, strong, false);
+            appendResultCards(grid, strong, false, galleryPaths);
             container.appendChild(grid);
           }
           if (weak.length > 0) {
@@ -1771,7 +2258,7 @@
               "% similarity — still related, but less confident.</p>";
             const wgrid = document.createElement("div");
             wgrid.className = "grid";
-            appendResultCards(wgrid, weak, true);
+            appendResultCards(wgrid, weak, true, galleryPaths);
             wrap.appendChild(wgrid);
             container.appendChild(wrap);
           }
@@ -1797,12 +2284,104 @@
       window.open("/index/failures", "_blank", "noopener,noreferrer");
     });
 
+    $("lightboxCloseBtn").addEventListener("click", () => {
+      $("lightbox").close();
+    });
+    $("lightboxPrev").addEventListener("click", () => lightboxNavigate(-1));
+    $("lightboxNext").addEventListener("click", () => lightboxNavigate(1));
+    $("lightboxZoomToggle").addEventListener("click", () => toggleLightboxZoom());
+
+    $("lightboxShare").addEventListener("click", async () => {
+      const path = $("lightboxMetaPath").textContent;
+      if (!path || path === "—") return;
+      const shareUrl =
+        window.location.origin + "/photo?path=" + encodeURIComponent(path);
+      const title = suggestedPhotoFilename(path);
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: title, url: shareUrl });
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+          showToast("Link copied to clipboard");
+        }
+      } catch (e) {
+        if (e && e.name === "AbortError") return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(shareUrl);
+            showToast("Link copied to clipboard");
+          }
+        } catch (_) {
+          showToast("Could not share or copy link");
+        }
+      }
+    });
+
+    $("lightboxCopyPath").addEventListener("click", async () => {
+      const path = $("lightboxMetaPath").textContent;
+      if (!path || path === "—") return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(path);
+          showToast("Path copied");
+        } else {
+          showToast("Clipboard not available");
+        }
+      } catch (e) {
+        showToast("Could not copy path");
+      }
+    });
+
+    $("lightboxViewport").addEventListener("dblclick", (e) => {
+      if (e.target.closest("a")) return;
+      toggleLightboxZoom();
+    });
+
+    (function initLightboxViewportPan() {
+      const vp = $("lightboxViewport");
+      let panning = false;
+      let startX = 0;
+      let startY = 0;
+      let startSl = 0;
+      let startSt = 0;
+      vp.addEventListener("pointerdown", (e) => {
+        if (!lightboxZoom || e.button !== 0) return;
+        panning = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startSl = vp.scrollLeft;
+        startSt = vp.scrollTop;
+        vp.setPointerCapture(e.pointerId);
+      });
+      vp.addEventListener("pointermove", (e) => {
+        if (!panning || !lightboxZoom) return;
+        vp.scrollLeft = startSl - (e.clientX - startX);
+        vp.scrollTop = startSt - (e.clientY - startY);
+      });
+      function endPan(e) {
+        if (!panning) return;
+        panning = false;
+        try {
+          vp.releasePointerCapture(e.pointerId);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      vp.addEventListener("pointerup", endPan);
+      vp.addEventListener("pointercancel", endPan);
+    })();
+
     $("clearResults").addEventListener("click", () => {
       $("q").value = "";
       $("resultsBlock").classList.add("hidden");
       $("results").innerHTML = "";
       $("welcomeBlock").classList.remove("hidden");
       $("discoverSection").classList.remove("hidden");
+      try {
+        sessionStorage.removeItem(SESSION_SEARCH_KEY);
+      } catch (e) {
+        /* ignore */
+      }
       loadRecentPhotos();
     });
 
@@ -1829,8 +2408,25 @@
         (t.tagName === "INPUT" ||
           t.tagName === "TEXTAREA" ||
           t.isContentEditable);
+      const lb = $("lightbox");
+      if (lb.open && !inField) {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          lightboxNavigate(-1);
+          return;
+        }
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          lightboxNavigate(1);
+          return;
+        }
+        if (e.key === "z" || e.key === "Z") {
+          e.preventDefault();
+          toggleLightboxZoom();
+          return;
+        }
+      }
       if (e.key === "Escape") {
-        const lb = $("lightbox");
         if (lb.open) {
           e.preventDefault();
           lb.close();
@@ -1875,6 +2471,18 @@
       renderPopular();
       renderRecent();
       await refreshStatus();
+      try {
+        const raw = sessionStorage.getItem(SESSION_SEARCH_KEY);
+        if (raw) {
+          const o = JSON.parse(raw);
+          if (o && typeof o.q === "string" && o.q.trim()) {
+            $("q").value = o.q.trim();
+            runSearch();
+          }
+        }
+      } catch (e) {
+        /* ignore */
+      }
       loadRecentPhotos();
       loadHealthFooter();
       setInterval(() => {

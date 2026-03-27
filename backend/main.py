@@ -27,7 +27,8 @@ from webdav4.client import Client
 
 load_dotenv()
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
+__license_id__ = "AGPL-3.0"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,14 +43,18 @@ try:
 except ImportError:
     pass
 
-from clip_model import get_clip  # noqa: E402  — load env before heavy imports
+from clip_model import encode_image_bytes, get_clip  # noqa: E402  — load env before heavy imports
 from db import (  # noqa: E402
     count_photos,
     get_connection,
     get_index_roots,
+    get_photo_indexed_at,
     init_db,
     list_index_failures,
+    list_photos_in_folder,
     list_recent_photos,
+    numpy_to_blob,
+    search_similar_to_embedding,
     set_index_roots,
 )
 from image_io import load_rgb_image  # noqa: E402
@@ -75,6 +80,11 @@ def _resolve_frontend_index() -> Path:
 FRONTEND_INDEX = _resolve_frontend_index()
 FRONTEND_DIR = FRONTEND_INDEX.parent
 _ASSETS_DIR = FRONTEND_DIR / "assets"
+
+_REPO_ROOT = FRONTEND_INDEX.parent.parent if FRONTEND_INDEX.parent.name == "frontend" else BASE_DIR
+_LICENSE_FILE = BASE_DIR / "LICENSE"
+if not _LICENSE_FILE.is_file():
+    _LICENSE_FILE = _REPO_ROOT / "LICENSE"
 
 index_state: Dict[str, Any] = {
     "in_progress": False,
@@ -360,6 +370,7 @@ def health() -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "status": "ok",
         "version": __version__,
+        "license": __license_id__,
         "service": "nimbus",
     }
     ai = _parse_auto_index_interval_hours()
@@ -388,6 +399,14 @@ def serve_index() -> FileResponse:
     if not FRONTEND_INDEX.is_file():
         raise HTTPException(500, "frontend/index.html not found")
     return FileResponse(FRONTEND_INDEX)
+
+
+@app.get("/LICENSE", response_class=FileResponse)
+def serve_license() -> FileResponse:
+    """Serve AGPL text at a stable URL (footer link)."""
+    if not _LICENSE_FILE.is_file():
+        raise HTTPException(404, "LICENSE not found")
+    return FileResponse(_LICENSE_FILE, media_type="text/plain; charset=utf-8")
 
 
 @app.post("/index")
@@ -438,6 +457,95 @@ def photos_recent(limit: int = Query(8, ge=1, le=48)) -> Dict[str, Any]:
         {"webdav_path": p, "filename": f, "indexed_at": t} for p, f, t in rows
     ]
     return {"items": items}
+
+
+@app.get("/photo/meta")
+def photo_meta(
+    path: str = Query(..., max_length=8192, description="WebDAV path to the image"),
+) -> Dict[str, Any]:
+    """Pixel dimensions and format from decoded bytes; ``indexed_at`` from DB if known."""
+    raw_path = _normalize_webdav_path(path)
+    base = _env("PCLOUD_WEBDAV_URL", "https://ewebdav.pcloud.com").rstrip("/")
+    user = _env("PCLOUD_USERNAME")
+    password = _env("PCLOUD_PASSWORD")
+    client = Client(base, auth=(user, password), retry=True)
+    try:
+        data = _download_webdav_bytes(client, raw_path)
+    except Exception as e:
+        logger.warning("Photo meta fetch failed for %s: %s", raw_path, e)
+        raise HTTPException(404, "Could not load image from WebDAV") from e
+    try:
+        img = load_rgb_image(data, source=raw_path)
+    except Exception as e:
+        logger.warning("Photo meta decode failed for %s: %s", raw_path, e)
+        raise HTTPException(400, "Could not read image dimensions") from e
+    indexed_at: str | None = None
+    with db_lock:
+        indexed_at = get_photo_indexed_at(get_connection(), raw_path)
+    return {
+        "webdav_path": raw_path,
+        "width": int(img.width),
+        "height": int(img.height),
+        "format": (img.format or "").upper() or None,
+        "indexed_at": indexed_at,
+    }
+
+
+@app.get("/photos/similar")
+def photos_similar(
+    path: str = Query(..., max_length=8192),
+    k: int = Query(12, ge=1, le=24),
+) -> Dict[str, Any]:
+    """KNN by image embedding (CLIP); excludes the query path from results."""
+    raw_path = _normalize_webdav_path(path)
+    base = _env("PCLOUD_WEBDAV_URL", "https://ewebdav.pcloud.com").rstrip("/")
+    user = _env("PCLOUD_USERNAME")
+    password = _env("PCLOUD_PASSWORD")
+    client = Client(base, auth=(user, password), retry=True)
+    try:
+        data = _download_webdav_bytes(client, raw_path)
+    except Exception as e:
+        logger.warning("Similar: fetch failed for %s: %s", raw_path, e)
+        raise HTTPException(404, "Could not load image from WebDAV") from e
+    try:
+        vec = encode_image_bytes(data, source=raw_path)
+    except Exception as e:
+        logger.warning("Similar: encode failed for %s: %s", raw_path, e)
+        raise HTTPException(400, "Could not encode image for similarity") from e
+    blob = numpy_to_blob(vec)
+    with db_lock:
+        rows = search_similar_to_embedding(
+            get_connection(),
+            blob,
+            k=k,
+            exclude_path=raw_path,
+        )
+    items: List[Dict[str, Any]] = []
+    for webdav_path, filename, distance in rows:
+        score = max(0.0, min(1.0, 1.0 - float(distance)))
+        items.append(
+            {
+                "webdav_path": webdav_path,
+                "filename": filename,
+                "score": score,
+            }
+        )
+    return {"query_path": raw_path, "items": items}
+
+
+@app.get("/photos/folder")
+def photos_in_folder(
+    path: str = Query(..., max_length=8192),
+    limit: int = Query(24, ge=1, le=48),
+) -> Dict[str, Any]:
+    """Other indexed photos in the same folder as ``path`` (direct children only)."""
+    raw_path = _normalize_webdav_path(path)
+    with db_lock:
+        folder, rows = list_photos_in_folder(get_connection(), raw_path, limit=limit)
+    items = [
+        {"webdav_path": p, "filename": f, "indexed_at": t} for p, f, t in rows
+    ]
+    return {"folder": folder, "items": items}
 
 
 @app.get("/index/failures")
