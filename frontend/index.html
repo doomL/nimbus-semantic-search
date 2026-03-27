@@ -550,6 +550,10 @@
       display: block;
       vertical-align: middle;
     }
+    /* Avoid flashing the previous decode while the new full-size photo loads */
+    #lightboxImg.lightbox-img-loading {
+      opacity: 0;
+    }
     .hidden { display: none !important; }
     .btn:focus-visible,
     .chip:focus-visible,
@@ -1331,9 +1335,26 @@
       return img;
     }
 
+    let lightboxOpenSeq = 0;
+
     function openLightboxForPath(path) {
-      $("lightboxImg").src = photoUrl(path, false);
+      const img = $("lightboxImg");
+      const url = photoUrl(path, false);
+      const seq = ++lightboxOpenSeq;
+      img.classList.add("lightbox-img-loading");
+      img.src = url;
       $("lightbox").showModal();
+
+      const reveal = () => {
+        if (seq !== lightboxOpenSeq) return;
+        img.classList.remove("lightbox-img-loading");
+      };
+      if (img.complete) {
+        reveal();
+      } else {
+        img.addEventListener("load", reveal, { once: true });
+        img.addEventListener("error", reveal, { once: true });
+      }
     }
 
     function appendResultCards(grid, items, weak) {
