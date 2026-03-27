@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 import threading
 import time
 from io import BytesIO
@@ -206,12 +207,8 @@ def _failure_reason(exc: BaseException) -> str:
     return line[:500]
 
 
-def _encode_and_store(
-    conn,
-    client: Client,
-    webdav_path: str,
-    filename: str,
-) -> None:
+def _download_image_embedding_blob(client: Client, webdav_path: str) -> bytes:
+    """Download, decode, and CLIP-encode; returns float32 embedding blob (no DB I/O)."""
     data = _download_image_bytes(client, webdav_path)
     try:
         img = load_rgb_image(data, source=webdav_path)
@@ -219,8 +216,7 @@ def _encode_and_store(
         raise
 
     vec = encode_image_pil(img)
-    blob = numpy_to_blob(vec)
-    insert_photo(conn, webdav_path, filename, blob)
+    return numpy_to_blob(vec)
 
 
 def run_index_job(
@@ -288,33 +284,68 @@ def run_index_job(
     try:
         for webdav_path in paths:
             filename = webdav_path.rsplit("/", 1)[-1]
-            with db_lock:
-                conn = get_connection()
-                try:
+            try:
+                with db_lock:
+                    conn = get_connection()
                     if path_exists(conn, webdav_path):
                         with state_lock:
                             state["skipped"] = int(state.get("skipped", 0)) + 1
                         continue
-                    _encode_and_store(conn, client, webdav_path, filename)
-                    commits_since_batch += 1
-                    if commits_since_batch >= commit_every:
-                        conn.commit()
-                        commits_since_batch = 0
-                    with state_lock:
-                        state["indexed_this_run"] = (
-                            int(state.get("indexed_this_run", 0)) + 1
-                        )
-                except Exception as e:
-                    r = _failure_reason(e)
-                    logger.info("index_fail path=%s reason=%s", webdav_path, r)
+            except Exception as e:
+                r = _failure_reason(e)
+                logger.info("index_fail path=%s reason=%s", webdav_path, r)
+                try:
+                    with db_lock:
+                        record_index_failure(get_connection(), webdav_path, r)
+                except Exception:
+                    pass
+                with state_lock:
+                    state["errors"] = int(state.get("errors", 0)) + 1
+                    state["last_error"] = f"{webdav_path}: {r}"
+                continue
+
+            try:
+                blob = _download_image_embedding_blob(client, webdav_path)
+            except Exception as e:
+                r = _failure_reason(e)
+                logger.info("index_fail path=%s reason=%s", webdav_path, r)
+                try:
+                    with db_lock:
+                        record_index_failure(get_connection(), webdav_path, r)
+                except Exception:
+                    pass
+                with state_lock:
+                    state["errors"] = int(state.get("errors", 0)) + 1
+                    state["last_error"] = f"{webdav_path}: {r}"
+                continue
+
+            try:
+                with db_lock:
+                    conn = get_connection()
                     try:
-                        with db_lock:
-                            record_index_failure(get_connection(), webdav_path, r)
-                    except Exception:
-                        pass
-                    with state_lock:
-                        state["errors"] = int(state.get("errors", 0)) + 1
-                        state["last_error"] = f"{webdav_path}: {r}"
+                        insert_photo(conn, webdav_path, filename, blob)
+                        commits_since_batch += 1
+                        if commits_since_batch >= commit_every:
+                            conn.commit()
+                            commits_since_batch = 0
+                        with state_lock:
+                            state["indexed_this_run"] = (
+                                int(state.get("indexed_this_run", 0)) + 1
+                            )
+                    except sqlite3.IntegrityError:
+                        with state_lock:
+                            state["skipped"] = int(state.get("skipped", 0)) + 1
+            except Exception as e:
+                r = _failure_reason(e)
+                logger.info("index_fail path=%s reason=%s", webdav_path, r)
+                try:
+                    with db_lock:
+                        record_index_failure(get_connection(), webdav_path, r)
+                except Exception:
+                    pass
+                with state_lock:
+                    state["errors"] = int(state.get("errors", 0)) + 1
+                    state["last_error"] = f"{webdav_path}: {r}"
         with db_lock:
             conn = get_connection()
             conn.commit()
