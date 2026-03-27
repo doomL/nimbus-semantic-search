@@ -430,7 +430,7 @@ def search(
 
 
 @app.get("/photos/recent")
-def photos_recent(limit: int = Query(24, ge=1, le=48)) -> Dict[str, Any]:
+def photos_recent(limit: int = Query(8, ge=1, le=48)) -> Dict[str, Any]:
     """Newest indexed paths (for home screen gallery)."""
     with db_lock:
         rows = list_recent_photos(get_connection(), limit=limit)
