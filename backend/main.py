@@ -28,6 +28,7 @@ from webdav4.client import Client
 load_dotenv()
 
 __version__ = "0.2.0"
+__license_id__ = "AGPL-3.0"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -369,6 +370,7 @@ def health() -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "status": "ok",
         "version": __version__,
+        "license": __license_id__,
         "service": "nimbus",
     }
     ai = _parse_auto_index_interval_hours()

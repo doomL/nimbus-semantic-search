@@ -2155,6 +2155,7 @@
         const h = await r.json();
         if (h.version) {
           let t = "API v" + h.version;
+          if (h.license) t += " · " + h.license;
           if (typeof h.indexed === "number") t += " · " + h.indexed + " photos indexed";
           if (h.database !== "ok") t += " · DB: " + (h.database || "?");
           if (typeof h.auto_index_interval_hours === "number" && h.auto_index_interval_hours > 0) {
