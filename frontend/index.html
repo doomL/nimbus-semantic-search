@@ -286,6 +286,65 @@
     }
     .status-panel strong { color: var(--text); font-weight: 500; }
     .status-panel .err { color: var(--danger); }
+    .status-panel .status-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.65rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border);
+    }
+    .status-panel details.status-details {
+      margin-top: 0.5rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .status-panel details.status-details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text);
+      list-style: none;
+    }
+    .status-panel details.status-details summary::-webkit-details-marker { display: none; }
+    .status-panel details.status-details .err-detail {
+      margin-top: 0.45rem;
+      color: var(--danger);
+      word-break: break-word;
+      font-weight: 400;
+    }
+    .index-progress-wrap {
+      margin-top: 0.75rem;
+    }
+    .index-progress-wrap[hidden] { display: none !important; }
+    .index-progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .index-progress-label strong { color: var(--accent); font-weight: 600; }
+    progress.index-progress {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    progress.index-progress::-webkit-progress-bar {
+      background: var(--surface2);
+      border-radius: 999px;
+    }
+    progress.index-progress::-webkit-progress-value {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+    }
+    progress.index-progress::-moz-progress-bar {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+    }
     .discover {
       margin-bottom: 2rem;
     }
@@ -639,16 +698,25 @@
     </div>
 
     <div class="status-panel" id="statusPanel">Loading status…</div>
+    <div class="index-progress-wrap" id="indexProgressWrap" hidden>
+      <div class="index-progress-label">
+        <span id="indexProgressText">Indexing…</span>
+        <strong id="indexProgressPct" aria-live="polite">0%</strong>
+      </div>
+      <progress class="index-progress" id="indexProgressBar" max="100" value="0" aria-label="Indexing progress"></progress>
+    </div>
 
     <div id="welcomeBlock" class="welcome-illus">
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <circle cx="32" cy="32" r="28" stroke="url(#wg)" stroke-width="2" opacity="0.35"/>
-        <path d="M20 38c4-8 10-12 18-12s14 4 18 12" stroke="url(#wg)" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="26" cy="24" r="3" fill="currentColor" opacity="0.5"/>
-        <circle cx="38" cy="22" r="2" fill="currentColor" opacity="0.35"/>
+        <!-- Cloud + lens (neutral graphic — avoids a face-like curve being read as a “sad” mouth) -->
         <defs>
           <linearGradient id="wg" x1="8" y1="8" x2="56" y2="56"><stop stop-color="#2dd4bf"/><stop offset="1" stop-color="#818cf8"/></linearGradient>
         </defs>
+        <path fill="url(#wg)" opacity="0.45" d="M48 34c0-8.8-7.2-16-16-16-6.7 0-12.5 4.1-14.9 10-2.8-.8-5.8-1.2-8.9-1.2C4.5 26.8 0 31.3 0 37c0 5.4 4.4 9.8 9.8 9.8H48c6.6 0 12-5.4 12-12 0-5.9-4.3-10.8-9.9-11.8z" transform="translate(8 6)"/>
+        <circle cx="30" cy="34" r="11" stroke="url(#wg)" stroke-width="2.2" opacity="0.85"/>
+        <path d="M38 42l10 10" stroke="url(#wg)" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+        <circle cx="52" cy="18" r="2.2" fill="#fef3c7" opacity="0.85"/>
+        <circle cx="46" cy="22" r="1.4" fill="#fef3c7" opacity="0.55"/>
       </svg>
       <p>Index your library once, then search by meaning. Pick a suggestion or write your own — the model understands scenes, not filenames.</p>
     </div>
@@ -752,6 +820,41 @@
 
     let lastIndexedCount = 0;
     let statusPollCount = 0;
+    let statusIntervalId = null;
+
+    function updateIndexProgress(s) {
+      const wrap = $("indexProgressWrap");
+      const bar = $("indexProgressBar");
+      const pctEl = $("indexProgressPct");
+      const textEl = $("indexProgressText");
+      const total = typeof s.total === "number" ? s.total : 0;
+      const inProg = !!s.in_progress;
+      if (!inProg || total <= 0) {
+        wrap.hidden = true;
+        bar.removeAttribute("value");
+        return;
+      }
+      const skipped = typeof s.skipped === "number" ? s.skipped : 0;
+      const doneRun = typeof s.indexed_this_run === "number" ? s.indexed_this_run : 0;
+      const errs = typeof s.errors === "number" ? s.errors : 0;
+      const processed = Math.min(total, skipped + doneRun + errs);
+      const pct = Math.min(100, Math.round((processed / total) * 100));
+      wrap.hidden = false;
+      bar.value = pct;
+      bar.setAttribute("aria-valuenow", String(pct));
+      bar.setAttribute("aria-valuemax", "100");
+      pctEl.textContent = pct + "%";
+      textEl.textContent =
+        "Indexing library — " + processed.toLocaleString() + " / " + total.toLocaleString() + " files";
+    }
+
+    function setStatusPolling(fast) {
+      if (statusIntervalId) clearInterval(statusIntervalId);
+      const ms = fast ? 1200 : 8000;
+      statusIntervalId = setInterval(() => {
+        if (!document.hidden) refreshStatus();
+      }, ms);
+    }
 
     async function loadLibraryTags() {
       const row = $("libraryTags");
@@ -882,17 +985,26 @@
           "<strong>Errors</strong>: " + s.errors,
           "<strong>Indexing</strong>: " + (s.in_progress ? "yes" : "no"),
         ];
+        let html = parts.join(" &nbsp;|&nbsp; ");
+        html +=
+          '<p class="status-meta">Errors are from the last index job (broken or empty files on the server), not from search.</p>';
         if (s.last_error) {
-          parts.push('<span class="err">Last error: ' + escapeHtml(s.last_error) + "</span>");
+          html +=
+            '<details class="status-details"><summary>Last index warning</summary><p class="err-detail">' +
+            escapeHtml(s.last_error) +
+            "</p></details>";
         }
-        el.innerHTML = parts.join(" &nbsp;|&nbsp; ");
+        el.innerHTML = html;
+        updateIndexProgress(s);
         $("indexBtn").disabled = !!s.in_progress;
+        setStatusPolling(!!s.in_progress);
         // Tag list is expensive; reload when the library size changes or on first poll.
         if (statusPollCount === 1 || lastIndexedCount !== prevIndexed) {
           loadLibraryTags();
         }
       } catch (e) {
         el.textContent = "Could not load status.";
+        $("indexProgressWrap").hidden = true;
       }
     }
 
@@ -979,7 +1091,7 @@
           if (!data) return;
           if (!data.results || data.results.length === 0) {
             container.innerHTML =
-              '<p class="empty">No matches for that phrase. Try another suggestion or re-index if your library is new.</p>';
+              '<p class="empty" role="status">No photos matched that phrase. Try different words, pick a suggestion below, or index if your library is new.</p>';
             return;
           }
           const grid = document.createElement("div");
@@ -1089,9 +1201,6 @@
       renderRecent();
       await refreshStatus();
       loadHealthFooter();
-      setInterval(() => {
-        if (!document.hidden) refreshStatus();
-      }, 8000);
       setInterval(() => {
         if (!document.hidden) loadHealthFooter();
       }, 60000);
