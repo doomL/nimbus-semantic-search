@@ -11,7 +11,15 @@ from typing import Any, Callable, Dict, List, Optional
 from webdav4.client import Client, ResourceNotFound
 
 from clip_model import encode_image_pil
-from db import count_photos, get_connection, insert_photo, numpy_to_blob, path_exists
+from db import (
+    count_photos,
+    get_connection,
+    get_index_roots,
+    insert_photo,
+    numpy_to_blob,
+    path_exists,
+    record_index_failure,
+)
 from image_io import load_rgb_image
 from tag_stats import recompute_library_tags
 
@@ -103,6 +111,57 @@ def _ls_detail(client: Client, path: str) -> List[Any]:
         return []
 
 
+def _normalize_index_root(p: str) -> str:
+    p = p.strip()
+    if not p:
+        return "/"
+    if not p.startswith("/"):
+        p = "/" + p
+    p = p.rstrip("/")
+    return p if p else "/"
+
+
+def effective_index_roots(conn) -> List[str]:
+    """Folders to crawl; default [\"/\"] when unset (full library)."""
+    raw = get_index_roots(conn)
+    if not raw:
+        return ["/"]
+    seen: set[str] = set()
+    out: List[str] = []
+    for r in raw:
+        n = _normalize_index_root(r)
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out if out else ["/"]
+
+
+def list_immediate_subdirs(client: Client, parent: str) -> List[str]:
+    """Return sorted WebDAV paths for direct child directories of ``parent``."""
+    parent = _normalize_index_root(parent)
+    if parent == "/":
+        list_path = "/"
+    else:
+        list_path = parent
+    entries = _ls_detail(client, list_path)
+    out: List[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("type") != "directory":
+            continue
+        name = (entry.get("name") or "").strip()
+        if not name:
+            continue
+        full = _resolve_entry_path(list_path, name)
+        if not full:
+            continue
+        if _should_skip_dir(full):
+            continue
+        out.append(full)
+    return sorted(out)
+
+
 def _collect_image_paths(client: Client, path: str, out: List[str]) -> None:
     """Recursive PROPFIND listing; fills out with WebDAV paths to image files."""
     entries = _ls_detail(client, path)
@@ -132,18 +191,31 @@ def _download_to_bytesio(client: Client, path: str) -> BytesIO:
     return buf
 
 
+def _download_image_bytes(client: Client, webdav_path: str) -> bytes:
+    """Download file bytes; retry once if empty (flaky WebDAV / CDN)."""
+    data = _download_to_bytesio(client, webdav_path).getvalue()
+    if len(data) == 0:
+        time.sleep(0.35)
+        data = _download_to_bytesio(client, webdav_path).getvalue()
+    return data
+
+
+def _failure_reason(exc: BaseException) -> str:
+    msg = str(exc).strip() or type(exc).__name__
+    line = msg.split("\n", 1)[0]
+    return line[:500]
+
+
 def _encode_and_store(
     conn,
     client: Client,
     webdav_path: str,
     filename: str,
 ) -> None:
-    buf = _download_to_bytesio(client, webdav_path)
-    data = buf.getvalue()
+    data = _download_image_bytes(client, webdav_path)
     try:
         img = load_rgb_image(data, source=webdav_path)
-    except Exception as e:
-        logger.error("Cannot open image %s: %s", webdav_path, e)
+    except Exception:
         raise
 
     vec = encode_image_pil(img)
@@ -175,6 +247,11 @@ def run_index_job(
         state["errors"] = 0
         state["last_error"] = None
 
+    with db_lock:
+        roots = effective_index_roots(get_connection())
+    with state_lock:
+        state["index_roots_effective"] = list(roots)
+
     client = Client(
         base_url.rstrip("/"),
         auth=(username, password),
@@ -183,7 +260,13 @@ def run_index_job(
 
     paths: List[str] = []
     try:
-        _retry_call(lambda: _collect_image_paths(client, "/", paths))
+
+        def crawl_all() -> None:
+            for root in roots:
+                _collect_image_paths(client, root, paths)
+
+        _retry_call(crawl_all)
+        paths = list(dict.fromkeys(paths))
     except Exception as e:
         logger.exception("Crawl failed: %s", e)
         with state_lock:
@@ -195,7 +278,11 @@ def run_index_job(
     with state_lock:
         state["total"] = len(paths)
 
-    logger.info("Found %s image files to consider.", len(paths))
+    logger.info(
+        "Found %s image files to consider (roots: %s).",
+        len(paths),
+        roots,
+    )
 
     commits_since_batch = 0
     try:
@@ -218,10 +305,16 @@ def run_index_job(
                             int(state.get("indexed_this_run", 0)) + 1
                         )
                 except Exception as e:
-                    logger.exception("Failed to index %s: %s", webdav_path, e)
+                    r = _failure_reason(e)
+                    logger.info("index_fail path=%s reason=%s", webdav_path, r)
+                    try:
+                        with db_lock:
+                            record_index_failure(get_connection(), webdav_path, r)
+                    except Exception:
+                        pass
                     with state_lock:
                         state["errors"] = int(state.get("errors", 0)) + 1
-                        state["last_error"] = str(e)
+                        state["last_error"] = f"{webdav_path}: {r}"
         with db_lock:
             conn = get_connection()
             conn.commit()

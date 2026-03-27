@@ -286,6 +286,65 @@
     }
     .status-panel strong { color: var(--text); font-weight: 500; }
     .status-panel .err { color: var(--danger); }
+    .status-panel .status-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.65rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border);
+    }
+    .status-panel details.status-details {
+      margin-top: 0.5rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .status-panel details.status-details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--text);
+      list-style: none;
+    }
+    .status-panel details.status-details summary::-webkit-details-marker { display: none; }
+    .status-panel details.status-details .err-detail {
+      margin-top: 0.45rem;
+      color: var(--danger);
+      word-break: break-word;
+      font-weight: 400;
+    }
+    .index-progress-wrap {
+      margin-top: 0.75rem;
+    }
+    .index-progress-wrap[hidden] { display: none !important; }
+    .index-progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .index-progress-label strong { color: var(--accent); font-weight: 600; }
+    progress.index-progress {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    progress.index-progress::-webkit-progress-bar {
+      background: var(--surface2);
+      border-radius: 999px;
+    }
+    progress.index-progress::-webkit-progress-value {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+    }
+    progress.index-progress::-moz-progress-bar {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+    }
     .discover {
       margin-bottom: 2rem;
     }
@@ -599,6 +658,239 @@
       padding-bottom: 1.25rem;
       border-bottom: 1px solid var(--border);
     }
+    .index-empty-callout {
+      font-size: 0.9rem;
+      color: var(--muted);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1.25rem;
+      line-height: 1.45;
+    }
+    .index-empty-callout strong { color: var(--text); }
+    .recent-section {
+      margin-bottom: 1.75rem;
+    }
+    .recent-section .section-label { margin-bottom: 0.5rem; }
+    .recent-section .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: 0 0 0.85rem;
+    }
+    .weak-results-block {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px dashed var(--border);
+    }
+    .weak-results-block h3 {
+      font-family: "Syne", sans-serif;
+      font-size: 0.95rem;
+      margin: 0 0 0.35rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .weak-results-block .weak-hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0 0 1rem;
+    }
+    .card.card--weak {
+      opacity: 0.92;
+    }
+    .card.card--weak .meta .score {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .thumb img.thumb-broken {
+      object-fit: contain;
+      padding: 1rem;
+      opacity: 0.55;
+    }
+    .failures-tools {
+      font-size: 0.78rem;
+      margin-top: 0.5rem;
+    }
+    .failures-tools a {
+      color: var(--accent2);
+      font-weight: 600;
+    }
+    .toast {
+      position: fixed;
+      bottom: 1.35rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(120%);
+      z-index: 200;
+      max-width: min(92vw, 26rem);
+      padding: 0.75rem 1.15rem;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 40px var(--shadow);
+      font-size: 0.88rem;
+      color: var(--text);
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .toast.toast--show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .index-scope {
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .index-scope summary {
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      color: var(--text);
+    }
+    .index-scope summary::-webkit-details-marker { display: none; }
+    .index-scope summary::after {
+      content: "▸";
+      color: var(--muted);
+      font-size: 0.75rem;
+      transition: transform 0.2s;
+    }
+    .index-scope[open] summary::after { transform: rotate(90deg); }
+    .index-scope .scope-body {
+      padding: 0 1rem 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .index-scope .hint {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin: 0.75rem 0;
+      line-height: 1.45;
+    }
+    .scope-mode {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-bottom: 0.85rem;
+    }
+    .scope-mode label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+    .folder-browser {
+      font-size: 0.84rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.75rem;
+      background: var(--bg0);
+    }
+    .folder-browser .fb-nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      margin-bottom: 0.5rem;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .folder-browser .fb-nav button {
+      background: none;
+      border: none;
+      color: var(--accent2);
+      font: inherit;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .folder-browser .fb-list {
+      max-height: 11rem;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .folder-browser .fb-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.25rem 0;
+    }
+    .folder-browser .fb-row span {
+      word-break: break-all;
+      color: var(--text);
+    }
+    .folder-browser .fb-row button {
+      flex-shrink: 0;
+      font-size: 0.78rem;
+      padding: 0.25rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .folder-browser .fb-row button:hover { border-color: var(--accent); }
+    .selected-roots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.65rem;
+      min-height: 1.5rem;
+    }
+    .selected-roots .chip-root {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      background: var(--chip-bg);
+      border: 1px solid var(--chip-border);
+      max-width: 100%;
+    }
+    .selected-roots .chip-root span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 14rem;
+    }
+    .selected-roots .chip-root button {
+      border: none;
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 0.15rem;
+    }
+    .selected-roots .chip-root button:hover { color: var(--danger); }
+    .scope-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .scope-actions .scope-msg {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .scope-actions .scope-msg.ok { color: var(--accent); }
+    .scope-actions .scope-msg.err { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -635,23 +927,77 @@
         <button type="button" class="btn btn-primary" id="searchBtn">Search</button>
         <button type="button" class="btn btn-ghost" id="indexBtn">Index photos</button>
       </div>
-      <p class="search-hint">Tip: press <kbd>/</kbd> to jump here · <span id="indexHint">Indexing runs on the server — you can close this tab; only new photos are embedded each run.</span></p>
+      <p class="search-hint">Tip: <kbd>/</kbd> focuses search · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs it · <kbd>Esc</kbd> clears results · <span id="indexHint">Indexing runs on the server — you can close this tab; only new photos are embedded each run.</span></p>
     </div>
 
+    <p class="index-empty-callout hidden" id="indexEmptyCallout" role="status">
+      <strong>No photos indexed yet.</strong> Click <strong>Index photos</strong> above so Nimbus can build embeddings from your WebDAV library. You can leave this page while it runs.
+    </p>
+
+    <details class="index-scope" id="indexScopeDetails">
+      <summary><span id="indexScopeSummary">Index scope — entire library</span></summary>
+      <div class="scope-body">
+        <p class="hint">
+          By default the whole WebDAV tree is scanned. To limit indexing, choose folders below. Existing indexed photos are kept; the next run only considers images under the selected paths.
+        </p>
+        <div class="scope-mode">
+          <label>
+            <input type="radio" name="indexScopeMode" value="all" id="scopeModeAll" checked />
+            Entire library (all folders)
+          </label>
+          <label>
+            <input type="radio" name="indexScopeMode" value="pick" id="scopeModePick" />
+            Only selected folders
+          </label>
+        </div>
+        <div id="folderPickerBlock" class="hidden">
+          <div class="selected-roots" id="selectedRoots" aria-label="Selected folders"></div>
+          <div class="folder-browser" id="folderBrowser">
+            <div class="fb-nav" id="folderBreadcrumb"></div>
+            <div class="fb-list" id="folderList">Loading…</div>
+          </div>
+        </div>
+        <div class="scope-actions">
+          <button type="button" class="btn btn-ghost" id="saveScopeBtn">Save index scope</button>
+          <span class="scope-msg" id="scopeSaveMsg" hidden></span>
+        </div>
+      </div>
+    </details>
+
     <div class="status-panel" id="statusPanel">Loading status…</div>
+    <div class="index-progress-wrap" id="indexProgressWrap" hidden>
+      <div class="index-progress-label">
+        <span id="indexProgressText">Indexing…</span>
+        <strong id="indexProgressPct" aria-live="polite">0%</strong>
+      </div>
+      <progress class="index-progress" id="indexProgressBar" max="100" value="0" aria-label="Indexing progress"></progress>
+    </div>
 
     <div id="welcomeBlock" class="welcome-illus">
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <circle cx="32" cy="32" r="28" stroke="url(#wg)" stroke-width="2" opacity="0.35"/>
-        <path d="M20 38c4-8 10-12 18-12s14 4 18 12" stroke="url(#wg)" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="26" cy="24" r="3" fill="currentColor" opacity="0.5"/>
-        <circle cx="38" cy="22" r="2" fill="currentColor" opacity="0.35"/>
+        <!-- Cloud + lens (neutral graphic — avoids a face-like curve being read as a “sad” mouth) -->
         <defs>
           <linearGradient id="wg" x1="8" y1="8" x2="56" y2="56"><stop stop-color="#2dd4bf"/><stop offset="1" stop-color="#818cf8"/></linearGradient>
         </defs>
+        <path fill="url(#wg)" opacity="0.45" d="M48 34c0-8.8-7.2-16-16-16-6.7 0-12.5 4.1-14.9 10-2.8-.8-5.8-1.2-8.9-1.2C4.5 26.8 0 31.3 0 37c0 5.4 4.4 9.8 9.8 9.8H48c6.6 0 12-5.4 12-12 0-5.9-4.3-10.8-9.9-11.8z" transform="translate(8 6)"/>
+        <circle cx="30" cy="34" r="11" stroke="url(#wg)" stroke-width="2.2" opacity="0.85"/>
+        <path d="M38 42l10 10" stroke="url(#wg)" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+        <circle cx="52" cy="18" r="2.2" fill="#fef3c7" opacity="0.85"/>
+        <circle cx="46" cy="22" r="1.4" fill="#fef3c7" opacity="0.55"/>
       </svg>
       <p>Index your library once, then search by meaning. Pick a suggestion or write your own — the model understands scenes, not filenames.</p>
     </div>
+
+    <section class="recent-section" id="recentSection" hidden>
+      <div class="section-label">Recently indexed</div>
+      <p class="hint">Latest additions to your local index (newest first).</p>
+      <div class="grid" id="recentGrid" role="region" aria-label="Recently indexed photos"></div>
+      <p class="failures-tools hidden" id="failuresTools">
+        <a href="/index/failures.csv" download="nimbus-index-failures.csv">Download index failures (CSV)</a>
+        ·
+        <a href="#" id="failuresJsonLink">View failures (JSON)</a>
+      </p>
+    </section>
 
     <section class="discover" id="discoverSection">
       <div id="libraryTagsBlock">
@@ -686,6 +1032,8 @@
       <span class="footer-version" id="footerVersion" hidden></span>
     </footer>
   </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <dialog id="lightbox" class="lightbox">
     <form method="dialog" style="margin:0;position:relative;">
@@ -752,6 +1100,369 @@
 
     let lastIndexedCount = 0;
     let statusPollCount = 0;
+    let statusIntervalId = null;
+    let lastIndexingInProgress = false;
+
+    let indexScopeRoots = new Set();
+    let currentBrowsePath = "/";
+    let lastAppliedScopeJson = "";
+
+    function normalizeScopePath(p) {
+      let s = (p || "").trim();
+      if (!s) return "/";
+      if (!s.startsWith("/")) s = "/" + s;
+      return s.replace(/\/+$/, "") || "/";
+    }
+
+    function updateScopeSummaryText() {
+      const entire = $("scopeModeAll").checked;
+      const el = $("indexScopeSummary");
+      if (entire) {
+        el.textContent = "Index scope — entire library";
+        return;
+      }
+      const n = indexScopeRoots.size;
+      el.textContent =
+        n === 0
+          ? "Index scope — pick folders below"
+          : "Index scope — " + n + " folder" + (n === 1 ? "" : "s");
+    }
+
+    function renderSelectedRoots() {
+      const wrap = $("selectedRoots");
+      wrap.innerHTML = "";
+      const sorted = Array.from(indexScopeRoots).sort();
+      sorted.forEach((path) => {
+        const chip = document.createElement("span");
+        chip.className = "chip-root";
+        const span = document.createElement("span");
+        span.textContent = path;
+        span.title = path;
+        const rm = document.createElement("button");
+        rm.type = "button";
+        rm.setAttribute("aria-label", "Remove folder");
+        rm.textContent = "×";
+        rm.addEventListener("click", () => {
+          indexScopeRoots.delete(path);
+          renderSelectedRoots();
+          updateScopeSummaryText();
+        });
+        chip.appendChild(span);
+        chip.appendChild(rm);
+        wrap.appendChild(chip);
+      });
+    }
+
+    function applyIndexScopeFromStatus(s) {
+      const roots = Array.isArray(s.index_roots) ? s.index_roots : [];
+      const entire = s.entire_library === true || roots.length === 0;
+      const key = JSON.stringify({ r: roots.slice().sort(), e: entire });
+      if (key === lastAppliedScopeJson) {
+        updateScopeSummaryText();
+        return;
+      }
+      lastAppliedScopeJson = key;
+      indexScopeRoots = new Set(roots.map(normalizeScopePath).filter((x) => x !== "/"));
+      $("scopeModeAll").checked = entire;
+      $("scopeModePick").checked = !entire;
+      $("folderPickerBlock").classList.toggle("hidden", entire);
+      renderSelectedRoots();
+      updateScopeSummaryText();
+      if (!entire) {
+        currentBrowsePath = "/";
+        loadFolderList(currentBrowsePath);
+      }
+    }
+
+    async function loadFolderList(parentPath) {
+      const listEl = $("folderList");
+      const crumbEl = $("folderBreadcrumb");
+      parentPath = normalizeScopePath(parentPath);
+      currentBrowsePath = parentPath;
+      listEl.textContent = "Loading…";
+      try {
+        const u = new URL("/webdav/folders", window.location.origin);
+        u.searchParams.set("parent", parentPath);
+        const r = await fetch(u.toString());
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        const folders = data.folders || [];
+        crumbEl.innerHTML = "";
+        const rootBtn = document.createElement("button");
+        rootBtn.type = "button";
+        rootBtn.textContent = "Root";
+        rootBtn.addEventListener("click", () => loadFolderList("/"));
+        crumbEl.appendChild(rootBtn);
+        if (parentPath !== "/") {
+          crumbEl.appendChild(document.createTextNode(" / "));
+          const parts = parentPath.replace(/^\/+/, "").split("/").filter(Boolean);
+          let acc = "";
+          parts.forEach((seg, i) => {
+            acc += "/" + seg;
+            const pathHere = acc;
+            const isLast = i === parts.length - 1;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = seg;
+            btn.addEventListener("click", () => loadFolderList(pathHere));
+            crumbEl.appendChild(btn);
+            if (!isLast) crumbEl.appendChild(document.createTextNode(" / "));
+          });
+        }
+        listEl.innerHTML = "";
+        if (folders.length === 0) {
+          listEl.textContent = "No subfolders here.";
+          return;
+        }
+        folders.forEach((f) => {
+          const row = document.createElement("div");
+          row.className = "fb-row";
+          const name = document.createElement("span");
+          name.textContent = f.name;
+          const actions = document.createElement("div");
+          actions.style.display = "flex";
+          actions.style.gap = "0.35rem";
+          const addBtn = document.createElement("button");
+          addBtn.type = "button";
+          addBtn.textContent = "Add";
+          addBtn.title = "Index this folder and its subfolders";
+          addBtn.addEventListener("click", () => {
+            indexScopeRoots.add(normalizeScopePath(f.path));
+            renderSelectedRoots();
+            updateScopeSummaryText();
+          });
+          const openBtn = document.createElement("button");
+          openBtn.type = "button";
+          openBtn.textContent = "Open";
+          openBtn.addEventListener("click", () => loadFolderList(f.path));
+          actions.appendChild(openBtn);
+          actions.appendChild(addBtn);
+          row.appendChild(name);
+          row.appendChild(actions);
+          listEl.appendChild(row);
+        });
+      } catch (e) {
+        listEl.textContent = "Could not list folders.";
+      }
+    }
+
+    $("scopeModeAll").addEventListener("change", () => {
+      if ($("scopeModeAll").checked) {
+        $("folderPickerBlock").classList.add("hidden");
+      }
+      updateScopeSummaryText();
+    });
+    $("scopeModePick").addEventListener("change", () => {
+      if ($("scopeModePick").checked) {
+        $("folderPickerBlock").classList.remove("hidden");
+        loadFolderList(currentBrowsePath || "/");
+      }
+      updateScopeSummaryText();
+    });
+
+    $("saveScopeBtn").addEventListener("click", async () => {
+      const msg = $("scopeSaveMsg");
+      msg.hidden = true;
+      const entire = $("scopeModeAll").checked;
+      const body = entire
+        ? { index_roots: [] }
+        : { index_roots: Array.from(indexScopeRoots) };
+      if (!entire && body.index_roots.length === 0) {
+        msg.textContent = "Pick at least one folder, or switch to entire library.";
+        msg.className = "scope-msg err";
+        msg.hidden = false;
+        return;
+      }
+      try {
+        const r = await fetch("/index/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error();
+        msg.textContent = "Saved.";
+        msg.className = "scope-msg ok";
+        msg.hidden = false;
+        lastAppliedScopeJson = "";
+        await refreshStatus();
+      } catch (e) {
+        msg.textContent = "Could not save.";
+        msg.className = "scope-msg err";
+        msg.hidden = false;
+      }
+    });
+
+    const PLACEHOLDER_THUMB =
+      "data:image/svg+xml," +
+      encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" fill="none">' +
+          '<rect width="160" height="160" fill="#1a2030"/>' +
+          '<path d="M48 112L72 88l16 16 24-32 24 28v24H48v-24z" stroke="#64748b" stroke-width="2" fill="none"/>' +
+          '<circle cx="58" cy="62" r="10" stroke="#64748b" stroke-width="2" fill="none"/>' +
+          '<text x="80" y="132" text-anchor="middle" fill="#64748b" font-family="system-ui,sans-serif" font-size="11">No preview</text>' +
+          "</svg>"
+      );
+
+    let toastTimer = null;
+    function showToast(message) {
+      const el = $("toast");
+      el.textContent = message;
+      el.classList.add("toast--show");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        el.classList.remove("toast--show");
+      }, 5200);
+    }
+
+    function createThumbImg(thumbSrc) {
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = "";
+      img.src = thumbSrc;
+      img.addEventListener(
+        "error",
+        function onThumbErr() {
+          img.removeEventListener("error", onThumbErr);
+          img.src = PLACEHOLDER_THUMB;
+          img.classList.add("thumb-broken");
+        },
+        { once: true }
+      );
+      return img;
+    }
+
+    function openLightboxForPath(path) {
+      $("lightboxImg").src = photoUrl(path, false);
+      $("lightbox").showModal();
+    }
+
+    function appendResultCards(grid, items, weak) {
+      for (const item of items) {
+        const card = document.createElement("div");
+        card.className = "card" + (weak ? " card--weak" : "");
+        const thumbSrc = photoUrl(item.webdav_path, true);
+        const a = document.createElement("a");
+        a.href = "#";
+        a.className = "open-full";
+        a.dataset.path = item.webdav_path;
+        const thumbWrap = document.createElement("div");
+        thumbWrap.className = "thumb";
+        thumbWrap.appendChild(createThumbImg(thumbSrc));
+        const scorePct = (item.score * 100).toFixed(1) + "%";
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const scoreEl = document.createElement("div");
+        scoreEl.className = "score";
+        scoreEl.textContent = scorePct + (weak ? " · low confidence" : " match");
+        meta.appendChild(scoreEl);
+        meta.appendChild(document.createTextNode(item.filename));
+        a.appendChild(thumbWrap);
+        a.appendChild(meta);
+        a.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          openLightboxForPath(a.dataset.path);
+        });
+        card.appendChild(a);
+        grid.appendChild(card);
+      }
+    }
+
+    async function loadRecentPhotos() {
+      const sec = $("recentSection");
+      const grid = $("recentGrid");
+      const tools = $("failuresTools");
+      try {
+        const r = await fetch("/photos/recent?limit=24");
+        if (!r.ok) throw new Error();
+        const data = await r.json();
+        const items = data.items || [];
+        grid.innerHTML = "";
+        if (items.length === 0) {
+          sec.hidden = true;
+          return;
+        }
+        sec.hidden = false;
+        for (const item of items) {
+          const card = document.createElement("div");
+          card.className = "card";
+          const thumbSrc = photoUrl(item.webdav_path, true);
+          const a = document.createElement("a");
+          a.href = "#";
+          a.className = "open-full";
+          a.dataset.path = item.webdav_path;
+          const thumbWrap = document.createElement("div");
+          thumbWrap.className = "thumb";
+          thumbWrap.appendChild(createThumbImg(thumbSrc));
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          const sub = document.createElement("div");
+          sub.className = "score";
+          sub.textContent = "Indexed";
+          const name = document.createElement("div");
+          name.textContent = item.filename;
+          meta.appendChild(sub);
+          meta.appendChild(name);
+          a.appendChild(thumbWrap);
+          a.appendChild(meta);
+          a.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            openLightboxForPath(a.dataset.path);
+          });
+          card.appendChild(a);
+          grid.appendChild(card);
+        }
+        try {
+          const fr = await fetch("/index/failures?limit=1");
+          if (fr.ok) {
+            const fd = await fr.json();
+            const n = fd.failures && fd.failures.length;
+            tools.classList.toggle("hidden", !n);
+          } else tools.classList.add("hidden");
+        } catch (e) {
+          tools.classList.add("hidden");
+        }
+      } catch (e) {
+        sec.hidden = true;
+      }
+    }
+
+    function updateIndexEmptyCallout(indexed) {
+      $("indexEmptyCallout").classList.toggle("hidden", indexed > 0);
+    }
+
+    function updateIndexProgress(s) {
+      const wrap = $("indexProgressWrap");
+      const bar = $("indexProgressBar");
+      const pctEl = $("indexProgressPct");
+      const textEl = $("indexProgressText");
+      const total = typeof s.total === "number" ? s.total : 0;
+      const inProg = !!s.in_progress;
+      if (!inProg || total <= 0) {
+        wrap.hidden = true;
+        bar.removeAttribute("value");
+        return;
+      }
+      const skipped = typeof s.skipped === "number" ? s.skipped : 0;
+      const doneRun = typeof s.indexed_this_run === "number" ? s.indexed_this_run : 0;
+      const errs = typeof s.errors === "number" ? s.errors : 0;
+      const processed = Math.min(total, skipped + doneRun + errs);
+      const pct = Math.min(100, Math.round((processed / total) * 100));
+      wrap.hidden = false;
+      bar.value = pct;
+      bar.setAttribute("aria-valuenow", String(pct));
+      bar.setAttribute("aria-valuemax", "100");
+      pctEl.textContent = pct + "%";
+      textEl.textContent =
+        "Indexing library — " + processed.toLocaleString() + " / " + total.toLocaleString() + " files";
+    }
+
+    function setStatusPolling(fast) {
+      if (statusIntervalId) clearInterval(statusIntervalId);
+      const ms = fast ? 1200 : 8000;
+      statusIntervalId = setInterval(() => {
+        if (!document.hidden) refreshStatus();
+      }, ms);
+    }
 
     async function loadLibraryTags() {
       const row = $("libraryTags");
@@ -874,6 +1585,30 @@
         statusPollCount += 1;
         const prevIndexed = lastIndexedCount;
         lastIndexedCount = typeof s.indexed === "number" ? s.indexed : 0;
+        updateIndexEmptyCallout(lastIndexedCount);
+        const wasIndexing = lastIndexingInProgress;
+        lastIndexingInProgress = !!s.in_progress;
+        if (wasIndexing && !lastIndexingInProgress) {
+          const n = typeof s.indexed_this_run === "number" ? s.indexed_this_run : 0;
+          const sk = typeof s.skipped === "number" ? s.skipped : 0;
+          const er = typeof s.errors === "number" ? s.errors : 0;
+          showToast(
+            "Indexing finished — " +
+              n +
+              " new, " +
+              sk +
+              " skipped" +
+              (er ? ", " + er + " errors" : "") +
+              "."
+          );
+          loadRecentPhotos();
+        }
+        let scopeLabel = "entire library";
+        if (s.in_progress && s.index_roots_effective && s.index_roots_effective.length) {
+          scopeLabel = s.index_roots_effective.join(", ");
+        } else if (s.index_roots && s.index_roots.length > 0) {
+          scopeLabel = s.index_roots.join(", ");
+        }
         const parts = [
           "<strong>Indexed</strong>: " + s.indexed,
           "<strong>Files (last run)</strong>: " + s.total,
@@ -881,18 +1616,30 @@
           "<strong>Skipped</strong>: " + s.skipped,
           "<strong>Errors</strong>: " + s.errors,
           "<strong>Indexing</strong>: " + (s.in_progress ? "yes" : "no"),
+          "<strong>Scope</strong>: " + escapeHtml(scopeLabel),
         ];
+        let html = parts.join(" &nbsp;|&nbsp; ");
+        html +=
+          '<p class="status-meta">Errors are from the last index job (broken or empty files on the server), not from search.</p>';
         if (s.last_error) {
-          parts.push('<span class="err">Last error: ' + escapeHtml(s.last_error) + "</span>");
+          html +=
+            '<details class="status-details"><summary>Last index warning</summary><p class="err-detail">' +
+            escapeHtml(s.last_error) +
+            "</p></details>";
         }
-        el.innerHTML = parts.join(" &nbsp;|&nbsp; ");
+        el.innerHTML = html;
+        updateIndexProgress(s);
+        applyIndexScopeFromStatus(s);
         $("indexBtn").disabled = !!s.in_progress;
+        setStatusPolling(!!s.in_progress);
         // Tag list is expensive; reload when the library size changes or on first poll.
         if (statusPollCount === 1 || lastIndexedCount !== prevIndexed) {
           loadLibraryTags();
+          loadRecentPhotos();
         }
       } catch (e) {
         el.textContent = "Could not load status.";
+        $("indexProgressWrap").hidden = true;
       }
     }
 
@@ -955,6 +1702,7 @@
         $("welcomeBlock").classList.remove("hidden");
         $("discoverSection").classList.remove("hidden");
         container.innerHTML = "";
+        loadRecentPhotos();
         return;
       }
       $("welcomeBlock").classList.add("hidden");
@@ -977,41 +1725,37 @@
         })
         .then((data) => {
           if (!data) return;
-          if (!data.results || data.results.length === 0) {
+          const strong = data.results || [];
+          const weak = data.weak_results || [];
+          if (strong.length === 0 && weak.length === 0) {
             container.innerHTML =
-              '<p class="empty">No matches for that phrase. Try another suggestion or re-index if your library is new.</p>';
+              '<p class="empty" role="status">No photos matched that phrase. Try different words, pick a suggestion below, or index if your library is new.</p>';
             return;
           }
-          const grid = document.createElement("div");
-          grid.className = "grid";
-          for (const item of data.results) {
-            const card = document.createElement("div");
-            card.className = "card";
-            const scorePct = (item.score * 100).toFixed(1) + "%";
-            const thumbSrc = photoUrl(item.webdav_path, true);
-            const a = document.createElement("a");
-            a.href = "#";
-            a.className = "open-full";
-            a.dataset.path = item.webdav_path;
-            a.innerHTML =
-              '<div class="thumb"><img loading="lazy" alt="" src="' +
-              escapeHtml(thumbSrc) +
-              '" /></div>' +
-              '<div class="meta"><div class="score">' +
-              scorePct +
-              " match</div>" +
-              escapeHtml(item.filename) +
-              "</div>";
-            a.addEventListener("click", (ev) => {
-              ev.preventDefault();
-              $("lightboxImg").src = photoUrl(a.dataset.path, false);
-              $("lightbox").showModal();
-            });
-            card.appendChild(a);
-            grid.appendChild(card);
-          }
           container.innerHTML = "";
-          container.appendChild(grid);
+          if (strong.length > 0) {
+            const grid = document.createElement("div");
+            grid.className = "grid";
+            appendResultCards(grid, strong, false);
+            container.appendChild(grid);
+          }
+          if (weak.length > 0) {
+            const wrap = document.createElement("div");
+            wrap.className = "weak-results-block";
+            const smin =
+              typeof data.strong_min === "number"
+                ? (data.strong_min * 100).toFixed(0)
+                : "22";
+            wrap.innerHTML =
+              "<h3>Weaker matches</h3><p class=\"weak-hint\">Below ~" +
+              smin +
+              "% similarity — still related, but less confident.</p>";
+            const wgrid = document.createElement("div");
+            wgrid.className = "grid";
+            appendResultCards(wgrid, weak, true);
+            wrap.appendChild(wgrid);
+            container.appendChild(wrap);
+          }
         })
         .catch(() => {
           container.innerHTML =
@@ -1021,7 +1765,17 @@
 
     $("searchBtn").addEventListener("click", runSearch);
     $("q").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        runSearch();
+        return;
+      }
       if (e.key === "Enter") runSearch();
+    });
+
+    $("failuresJsonLink").addEventListener("click", (e) => {
+      e.preventDefault();
+      window.open("/index/failures", "_blank", "noopener,noreferrer");
     });
 
     $("clearResults").addEventListener("click", () => {
@@ -1030,6 +1784,7 @@
       $("results").innerHTML = "";
       $("welcomeBlock").classList.remove("hidden");
       $("discoverSection").classList.remove("hidden");
+      loadRecentPhotos();
     });
 
     $("brandLink").addEventListener("click", (e) => {
@@ -1055,6 +1810,19 @@
         (t.tagName === "INPUT" ||
           t.tagName === "TEXTAREA" ||
           t.isContentEditable);
+      if (e.key === "Escape") {
+        const lb = $("lightbox");
+        if (lb.open) {
+          e.preventDefault();
+          lb.close();
+          return;
+        }
+        if (!inField) {
+          e.preventDefault();
+          $("clearResults").click();
+        }
+        return;
+      }
       if (e.key === "/" && !inField && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         $("q").focus();
@@ -1088,10 +1856,8 @@
       renderPopular();
       renderRecent();
       await refreshStatus();
+      loadRecentPhotos();
       loadHealthFooter();
-      setInterval(() => {
-        if (!document.hidden) refreshStatus();
-      }, 8000);
       setInterval(() => {
         if (!document.hidden) loadHealthFooter();
       }, 60000);
