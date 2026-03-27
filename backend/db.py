@@ -148,6 +148,98 @@ def insert_photo(
     return pid
 
 
+def parent_folder(webdav_path: str) -> str:
+    """Parent directory as WebDAV path (``/`` for root-level files)."""
+    p = str(webdav_path).strip().rstrip("/")
+    if not p or p == "/":
+        return "/"
+    i = p.rfind("/")
+    if i <= 0:
+        return "/"
+    return p[:i] or "/"
+
+
+def list_photos_in_folder(
+    conn: sqlite3.Connection,
+    webdav_path: str,
+    limit: int = 48,
+) -> Tuple[str, List[Tuple[str, str, str]]]:
+    """
+    Photos directly under ``parent_folder(webdav_path)``, excluding
+    ``webdav_path`` itself. Returns ``(folder, [(webdav_path, filename, indexed_at), ...])``.
+    """
+    folder = parent_folder(webdav_path)
+    exclude = webdav_path
+    if folder == "/":
+        sql = """
+            SELECT webdav_path, filename, indexed_at
+            FROM photos
+            WHERE webdav_path GLOB '/*'
+              AND webdav_path NOT GLOB '/*/*'
+              AND webdav_path != ?
+            ORDER BY indexed_at DESC, id DESC
+            LIMIT ?
+        """
+        cur = conn.execute(sql, (exclude, limit))
+    else:
+        base = folder.rstrip("/")
+        glob_one = base + "/*"
+        glob_nested = base + "/*/*"
+        sql = """
+            SELECT webdav_path, filename, indexed_at
+            FROM photos
+            WHERE webdav_path GLOB ?
+              AND webdav_path NOT GLOB ?
+              AND webdav_path != ?
+            ORDER BY indexed_at DESC, id DESC
+            LIMIT ?
+        """
+        cur = conn.execute(sql, (glob_one, glob_nested, exclude, limit))
+    rows = cur.fetchall()
+    return folder, [(str(p), str(f), str(t)) for p, f, t in rows]
+
+
+def search_similar_to_embedding(
+    conn: sqlite3.Connection,
+    query_embedding_f32: bytes,
+    k: int = 20,
+    exclude_path: Optional[str] = None,
+) -> List[Tuple[str, str, float]]:
+    """
+    Same as ``search_similar`` but optionally drops ``exclude_path`` from results
+    and fills from extra neighbors (requests more from sqlite-vec then trims).
+    """
+    need = k + (1 if exclude_path else 0) + 5
+    rows = conn.execute(
+        """
+        SELECT p.webdav_path, p.filename, v.distance
+        FROM vec_photos AS v
+        INNER JOIN photos AS p ON p.id = v.rowid
+        WHERE v.embedding MATCH ?
+          AND k = ?
+        """,
+        (query_embedding_f32, min(need, 100)),
+    ).fetchall()
+    out: List[Tuple[str, str, float]] = []
+    for webdav_path, filename, dist in rows:
+        if exclude_path and str(webdav_path) == exclude_path:
+            continue
+        out.append((str(webdav_path), str(filename), float(dist)))
+        if len(out) >= k:
+            break
+    return out
+
+
+def get_photo_indexed_at(
+    conn: sqlite3.Connection, webdav_path: str
+) -> Optional[str]:
+    row = conn.execute(
+        "SELECT indexed_at FROM photos WHERE webdav_path = ? LIMIT 1",
+        (webdav_path,),
+    ).fetchone()
+    return str(row[0]) if row else None
+
+
 def search_similar(
     conn: sqlite3.Connection,
     query_embedding_f32: bytes,

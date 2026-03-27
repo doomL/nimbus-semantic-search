@@ -56,6 +56,15 @@ def encode_image_pil(image_rgb: Image.Image) -> np.ndarray:
 
 
 @torch.no_grad()
+def encode_image_bytes(data: bytes, *, source: str = "") -> np.ndarray:
+    """Decode image bytes (RGB), return L2-normalized float32 embedding (512,)."""
+    from image_io import load_rgb_image
+
+    img = load_rgb_image(data, source=source)
+    return encode_image_pil(img)
+
+
+@torch.no_grad()
 def encode_text_query(text: str) -> np.ndarray:
     """Return L2-normalized float32 embedding for natural language query."""
     model, _, tokenizer, device = get_clip()
