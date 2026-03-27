@@ -55,7 +55,10 @@ from db import (  # noqa: E402
 from image_io import load_rgb_image  # noqa: E402
 from indexer import list_immediate_subdirs, run_index_job  # noqa: E402
 from search import search_photos  # noqa: E402
-from tag_stats import get_popular_tags, recompute_library_tags  # noqa: E402
+from tag_stats import (  # noqa: E402
+    get_popular_tags,
+    recompute_library_tags_background,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -480,9 +483,7 @@ def tags_recompute() -> JSONResponse:
 
     def job() -> None:
         try:
-            with db_lock:
-                conn = get_connection()
-                recompute_library_tags(conn)
+            recompute_library_tags_background(db_lock)
         except Exception:
             logger.exception("Tag recompute job failed")
 
