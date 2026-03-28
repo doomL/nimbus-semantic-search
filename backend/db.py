@@ -148,57 +148,6 @@ def insert_photo(
     return pid
 
 
-def parent_folder(webdav_path: str) -> str:
-    """Parent directory as WebDAV path (``/`` for root-level files)."""
-    p = str(webdav_path).strip().rstrip("/")
-    if not p or p == "/":
-        return "/"
-    i = p.rfind("/")
-    if i <= 0:
-        return "/"
-    return p[:i] or "/"
-
-
-def list_photos_in_folder(
-    conn: sqlite3.Connection,
-    webdav_path: str,
-    limit: int = 48,
-) -> Tuple[str, List[Tuple[str, str, str]]]:
-    """
-    Photos directly under ``parent_folder(webdav_path)``, excluding
-    ``webdav_path`` itself. Returns ``(folder, [(webdav_path, filename, indexed_at), ...])``.
-    """
-    folder = parent_folder(webdav_path)
-    exclude = webdav_path
-    if folder == "/":
-        sql = """
-            SELECT webdav_path, filename, indexed_at
-            FROM photos
-            WHERE webdav_path GLOB '/*'
-              AND webdav_path NOT GLOB '/*/*'
-              AND webdav_path != ?
-            ORDER BY indexed_at DESC, id DESC
-            LIMIT ?
-        """
-        cur = conn.execute(sql, (exclude, limit))
-    else:
-        base = folder.rstrip("/")
-        glob_one = base + "/*"
-        glob_nested = base + "/*/*"
-        sql = """
-            SELECT webdav_path, filename, indexed_at
-            FROM photos
-            WHERE webdav_path GLOB ?
-              AND webdav_path NOT GLOB ?
-              AND webdav_path != ?
-            ORDER BY indexed_at DESC, id DESC
-            LIMIT ?
-        """
-        cur = conn.execute(sql, (glob_one, glob_nested, exclude, limit))
-    rows = cur.fetchall()
-    return folder, [(str(p), str(f), str(t)) for p, f, t in rows]
-
-
 def search_similar_to_embedding(
     conn: sqlite3.Connection,
     query_embedding_f32: bytes,

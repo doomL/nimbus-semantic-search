@@ -559,9 +559,7 @@
     }
     .lightbox-close:hover { background: var(--surface); }
     .lightbox-download,
-    .lightbox-share,
-    .lightbox-copy-path,
-    .lightbox-zoom-toggle {
+    .lightbox-share {
       background: var(--surface2);
       color: var(--text);
       border: 1px solid var(--border);
@@ -575,9 +573,7 @@
       display: inline-block;
     }
     .lightbox-download:hover,
-    .lightbox-share:hover,
-    .lightbox-copy-path:hover,
-    .lightbox-zoom-toggle:hover {
+    .lightbox-share:hover {
       background: var(--surface);
     }
     .lightbox-nav {
@@ -696,13 +692,10 @@
     .lightbox-meta-row { margin: 0.15rem 0; }
     .lightbox-panels {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 0.65rem;
       padding: 0 0.65rem 0.65rem;
       max-width: 92vw;
-    }
-    @media (max-width: 640px) {
-      .lightbox-panels { grid-template-columns: 1fr; }
     }
     .lightbox-panel {
       border: 1px solid var(--border);
@@ -744,8 +737,6 @@
     .btn-text:focus-visible,
     .lightbox-download:focus-visible,
     .lightbox-share:focus-visible,
-    .lightbox-copy-path:focus-visible,
-    .lightbox-zoom-toggle:focus-visible,
     .lightbox-nav:focus-visible,
     .lightbox-close:focus-visible {
       outline: 2px solid var(--accent);
@@ -1237,12 +1228,6 @@
     <div class="lightbox-toolbar">
       <a id="lightboxDownload" class="lightbox-download" href="#" download>Download</a>
       <button type="button" class="lightbox-share" id="lightboxShare">Share</button>
-      <button type="button" class="lightbox-copy-path" id="lightboxCopyPath" title="Copy WebDAV path">
-        Copy path
-      </button>
-      <button type="button" class="lightbox-zoom-toggle" id="lightboxZoomToggle" title="Toggle zoom (Z)">
-        1:1
-      </button>
       <span class="lightbox-toolbar-spacer"></span>
       <button type="button" class="lightbox-close" id="lightboxCloseBtn">Close</button>
     </div>
@@ -1266,12 +1251,6 @@
       <div class="lightbox-panel">
         <h4>Similar</h4>
         <div class="lightbox-panel-inner" id="lightboxSimilar">
-          <span class="lightbox-panel-empty">Loading…</span>
-        </div>
-      </div>
-      <div class="lightbox-panel">
-        <h4>Same folder</h4>
-        <div class="lightbox-panel-inner" id="lightboxFolder">
           <span class="lightbox-panel-empty">Loading…</span>
         </div>
       </div>
@@ -1594,23 +1573,18 @@
     function resetLightboxZoom() {
       lightboxZoom = false;
       const vp = $("lightboxViewport");
-      const btn = $("lightboxZoomToggle");
       vp.classList.remove("lightbox-viewport--zoomed");
       vp.scrollLeft = 0;
       vp.scrollTop = 0;
-      btn.textContent = "1:1";
     }
 
     function setLightboxZoom(on) {
       const vp = $("lightboxViewport");
-      const btn = $("lightboxZoomToggle");
       lightboxZoom = !!on;
       if (lightboxZoom) {
         vp.classList.add("lightbox-viewport--zoomed");
-        btn.textContent = "Fit";
       } else {
         vp.classList.remove("lightbox-viewport--zoomed");
-        btn.textContent = "1:1";
       }
     }
 
@@ -1668,40 +1642,18 @@
 
     async function loadLightboxSidePanels(path, seq) {
       const simEl = $("lightboxSimilar");
-      const foldEl = $("lightboxFolder");
       simEl.innerHTML = '<span class="lightbox-panel-empty">Loading…</span>';
-      foldEl.innerHTML = '<span class="lightbox-panel-empty">Loading…</span>';
 
-      const simP = (async () => {
-        try {
-          const u = new URL("/photos/similar", window.location.origin);
-          u.searchParams.set("path", path);
-          u.searchParams.set("k", "12");
-          const r = await fetch(u.toString());
-          if (!r.ok) throw new Error();
-          return await r.json();
-        } catch (e) {
-          return null;
-        }
-      })();
-
-      const foldP = (async () => {
-        try {
-          const u = new URL("/photos/folder", window.location.origin);
-          u.searchParams.set("path", path);
-          u.searchParams.set("limit", "24");
-          const r = await fetch(u.toString());
-          if (!r.ok) throw new Error();
-          return await r.json();
-        } catch (e) {
-          return null;
-        }
-      })();
-
-      const simData = await simP;
-      if (seq !== lightboxOpenSeq) return;
-
-      const foldData = await foldP;
+      let simData = null;
+      try {
+        const u = new URL("/photos/similar", window.location.origin);
+        u.searchParams.set("path", path);
+        u.searchParams.set("k", "12");
+        const r = await fetch(u.toString());
+        if (r.ok) simData = await r.json();
+      } catch (e) {
+        simData = null;
+      }
       if (seq !== lightboxOpenSeq) return;
 
       if (!simData || !simData.items || simData.items.length === 0) {
@@ -1720,25 +1672,6 @@
             openLightboxForPath(it.webdav_path, { gallery: simGallery });
           });
           simEl.appendChild(a);
-        });
-      }
-
-      if (!foldData || !foldData.items || foldData.items.length === 0) {
-        foldEl.innerHTML =
-          '<span class="lightbox-panel-empty">No other photos in this folder.</span>';
-      } else {
-        const foldGallery = foldData.items.map((x) => x.webdav_path);
-        foldEl.innerHTML = "";
-        foldData.items.forEach((it) => {
-          const a = document.createElement("a");
-          a.className = "lightbox-mini";
-          a.href = "#";
-          a.textContent = it.filename;
-          a.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            openLightboxForPath(it.webdav_path, { gallery: foldGallery });
-          });
-          foldEl.appendChild(a);
         });
       }
     }
@@ -2289,8 +2222,6 @@
     });
     $("lightboxPrev").addEventListener("click", () => lightboxNavigate(-1));
     $("lightboxNext").addEventListener("click", () => lightboxNavigate(1));
-    $("lightboxZoomToggle").addEventListener("click", () => toggleLightboxZoom());
-
     $("lightboxShare").addEventListener("click", async () => {
       const path = $("lightboxMetaPath").textContent;
       if (!path || path === "—") return;
@@ -2314,21 +2245,6 @@
         } catch (_) {
           showToast("Could not share or copy link");
         }
-      }
-    });
-
-    $("lightboxCopyPath").addEventListener("click", async () => {
-      const path = $("lightboxMetaPath").textContent;
-      if (!path || path === "—") return;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(path);
-          showToast("Path copied");
-        } else {
-          showToast("Clipboard not available");
-        }
-      } catch (e) {
-        showToast("Could not copy path");
       }
     });
 
