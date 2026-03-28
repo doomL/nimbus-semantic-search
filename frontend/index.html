@@ -559,9 +559,7 @@
     }
     .lightbox-close:hover { background: var(--surface); }
     .lightbox-download,
-    .lightbox-share,
-    .lightbox-copy-path,
-    .lightbox-zoom-toggle {
+    .lightbox-share {
       background: var(--surface2);
       color: var(--text);
       border: 1px solid var(--border);
@@ -575,9 +573,7 @@
       display: inline-block;
     }
     .lightbox-download:hover,
-    .lightbox-share:hover,
-    .lightbox-copy-path:hover,
-    .lightbox-zoom-toggle:hover {
+    .lightbox-share:hover {
       background: var(--surface);
     }
     .lightbox-nav {
@@ -741,8 +737,6 @@
     .btn-text:focus-visible,
     .lightbox-download:focus-visible,
     .lightbox-share:focus-visible,
-    .lightbox-copy-path:focus-visible,
-    .lightbox-zoom-toggle:focus-visible,
     .lightbox-nav:focus-visible,
     .lightbox-close:focus-visible {
       outline: 2px solid var(--accent);
@@ -1234,12 +1228,6 @@
     <div class="lightbox-toolbar">
       <a id="lightboxDownload" class="lightbox-download" href="#" download>Download</a>
       <button type="button" class="lightbox-share" id="lightboxShare">Share</button>
-      <button type="button" class="lightbox-copy-path" id="lightboxCopyPath" title="Copy WebDAV path">
-        Copy path
-      </button>
-      <button type="button" class="lightbox-zoom-toggle" id="lightboxZoomToggle" title="Toggle zoom (Z)">
-        1:1
-      </button>
       <span class="lightbox-toolbar-spacer"></span>
       <button type="button" class="lightbox-close" id="lightboxCloseBtn">Close</button>
     </div>
@@ -1585,23 +1573,18 @@
     function resetLightboxZoom() {
       lightboxZoom = false;
       const vp = $("lightboxViewport");
-      const btn = $("lightboxZoomToggle");
       vp.classList.remove("lightbox-viewport--zoomed");
       vp.scrollLeft = 0;
       vp.scrollTop = 0;
-      btn.textContent = "1:1";
     }
 
     function setLightboxZoom(on) {
       const vp = $("lightboxViewport");
-      const btn = $("lightboxZoomToggle");
       lightboxZoom = !!on;
       if (lightboxZoom) {
         vp.classList.add("lightbox-viewport--zoomed");
-        btn.textContent = "Fit";
       } else {
         vp.classList.remove("lightbox-viewport--zoomed");
-        btn.textContent = "1:1";
       }
     }
 
@@ -2239,8 +2222,6 @@
     });
     $("lightboxPrev").addEventListener("click", () => lightboxNavigate(-1));
     $("lightboxNext").addEventListener("click", () => lightboxNavigate(1));
-    $("lightboxZoomToggle").addEventListener("click", () => toggleLightboxZoom());
-
     $("lightboxShare").addEventListener("click", async () => {
       const path = $("lightboxMetaPath").textContent;
       if (!path || path === "—") return;
@@ -2264,21 +2245,6 @@
         } catch (_) {
           showToast("Could not share or copy link");
         }
-      }
-    });
-
-    $("lightboxCopyPath").addEventListener("click", async () => {
-      const path = $("lightboxMetaPath").textContent;
-      if (!path || path === "—") return;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(path);
-          showToast("Path copied");
-        } else {
-          showToast("Clipboard not available");
-        }
-      } catch (e) {
-        showToast("Could not copy path");
       }
     });
 
