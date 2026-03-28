@@ -517,13 +517,16 @@
       opacity: 0.85;
     }
     dialog.lightbox {
-      max-width: 96vw;
-      max-height: 96vh;
+      max-width: 92vw;
+      max-height: 92vh;
       border: none;
       padding: 0;
       background: var(--bg0);
       border-radius: 12px;
       box-shadow: 0 24px 80px rgba(0,0,0,.55);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
     dialog.lightbox::backdrop {
       background: rgba(7, 8, 12, 0.72);
@@ -603,6 +606,13 @@
     }
     .lightbox-nav--prev { left: 0.5rem; }
     .lightbox-nav--next { right: 0.5rem; }
+    .lightbox-main-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
     .lightbox-body {
       position: relative;
       margin: 0;
@@ -611,8 +621,8 @@
     }
     .lightbox-viewport {
       overflow: auto;
-      max-width: 92vw;
-      max-height: min(78vh, 720px);
+      max-width: 88vw;
+      max-height: min(58vh, 520px);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -628,7 +638,7 @@
     }
     #lightboxImg {
       max-width: 100%;
-      max-height: min(76vh, 700px);
+      max-height: min(56vh, 500px);
       width: auto;
       height: auto;
       display: block;
@@ -680,8 +690,7 @@
       line-height: 1.45;
       border-top: 1px solid var(--border);
       background: var(--surface);
-      border-radius: 0 0 12px 12px;
-      max-width: 92vw;
+      max-width: 88vw;
     }
     .lightbox-meta code {
       font-family: "JetBrains Mono", monospace;
@@ -695,7 +704,8 @@
       grid-template-columns: 1fr;
       gap: 0.65rem;
       padding: 0 0.65rem 0.65rem;
-      max-width: 92vw;
+      max-width: 88vw;
+      border-radius: 0 0 10px 10px;
     }
     .lightbox-panel {
       border: 1px solid var(--border);
@@ -714,7 +724,7 @@
     }
     .lightbox-panel .lightbox-panel-inner {
       font-size: 0.8rem;
-      max-height: 140px;
+      max-height: 96px;
       overflow: auto;
     }
     .lightbox-panel a.lightbox-mini {
@@ -1231,27 +1241,29 @@
       <span class="lightbox-toolbar-spacer"></span>
       <button type="button" class="lightbox-close" id="lightboxCloseBtn">Close</button>
     </div>
-    <div class="lightbox-body">
-      <button type="button" class="lightbox-nav lightbox-nav--prev" id="lightboxPrev" aria-label="Previous photo">
-        ‹
-      </button>
-      <button type="button" class="lightbox-nav lightbox-nav--next" id="lightboxNext" aria-label="Next photo">
-        ›
-      </button>
-      <div class="lightbox-viewport" id="lightboxViewport">
-        <div class="lightbox-loading-ring" id="lightboxLoading" hidden></div>
-        <img id="lightboxImg" alt="" draggable="false" />
+    <div class="lightbox-main-scroll">
+      <div class="lightbox-body">
+        <button type="button" class="lightbox-nav lightbox-nav--prev" id="lightboxPrev" aria-label="Previous photo">
+          ‹
+        </button>
+        <button type="button" class="lightbox-nav lightbox-nav--next" id="lightboxNext" aria-label="Next photo">
+          ›
+        </button>
+        <div class="lightbox-viewport" id="lightboxViewport">
+          <div class="lightbox-loading-ring" id="lightboxLoading" hidden></div>
+          <img id="lightboxImg" alt="" draggable="false" />
+        </div>
       </div>
-    </div>
-    <div class="lightbox-meta" id="lightboxMeta">
-      <div class="lightbox-meta-row" id="lightboxMetaDims">—</div>
-      <div class="lightbox-meta-row"><code id="lightboxMetaPath">—</code></div>
-    </div>
-    <div class="lightbox-panels">
-      <div class="lightbox-panel">
-        <h4>Similar</h4>
-        <div class="lightbox-panel-inner" id="lightboxSimilar">
-          <span class="lightbox-panel-empty">Loading…</span>
+      <div class="lightbox-meta" id="lightboxMeta">
+        <div class="lightbox-meta-row" id="lightboxMetaDims">—</div>
+        <div class="lightbox-meta-row"><code id="lightboxMetaPath">—</code></div>
+      </div>
+      <div class="lightbox-panels">
+        <div class="lightbox-panel">
+          <h4>Similar</h4>
+          <div class="lightbox-panel-inner" id="lightboxSimilar">
+            <span class="lightbox-panel-empty">Loading…</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1648,7 +1660,7 @@
       try {
         const u = new URL("/photos/similar", window.location.origin);
         u.searchParams.set("path", path);
-        u.searchParams.set("k", "12");
+        u.searchParams.set("k", "6");
         const r = await fetch(u.toString());
         if (r.ok) simData = await r.json();
       } catch (e) {
