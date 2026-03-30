@@ -21,7 +21,7 @@ from db import (
     path_exists,
     record_index_failure,
 )
-from image_io import load_rgb_image
+from image_io import extract_gps_from_bytes, load_rgb_image
 from tag_stats import recompute_library_tags_background
 
 logger = logging.getLogger(__name__)
@@ -207,16 +207,21 @@ def _failure_reason(exc: BaseException) -> str:
     return line[:500]
 
 
-def _download_image_embedding_blob(client: Client, webdav_path: str) -> bytes:
-    """Download, decode, and CLIP-encode; returns float32 embedding blob (no DB I/O)."""
+def _download_image_data(
+    client: Client, webdav_path: str
+) -> tuple:
+    """
+    Download image, CLIP-encode, and extract GPS.
+    Returns (embedding_blob: bytes, gps_lat: float|None, gps_lon: float|None).
+    """
     data = _download_image_bytes(client, webdav_path)
-    try:
-        img = load_rgb_image(data, source=webdav_path)
-    except Exception:
-        raise
-
+    gps = extract_gps_from_bytes(data)
+    img = load_rgb_image(data, source=webdav_path)
     vec = encode_image_pil(img)
-    return numpy_to_blob(vec)
+    blob = numpy_to_blob(vec)
+    lat = gps[0] if gps else None
+    lon = gps[1] if gps else None
+    return blob, lat, lon
 
 
 def run_index_job(
@@ -305,7 +310,7 @@ def run_index_job(
                 continue
 
             try:
-                blob = _download_image_embedding_blob(client, webdav_path)
+                blob, gps_lat, gps_lon = _download_image_data(client, webdav_path)
             except Exception as e:
                 r = _failure_reason(e)
                 logger.info("index_fail path=%s reason=%s", webdav_path, r)
@@ -323,7 +328,7 @@ def run_index_job(
                 with db_lock:
                     conn = get_connection()
                     try:
-                        insert_photo(conn, webdav_path, filename, blob)
+                        insert_photo(conn, webdav_path, filename, blob, gps_lat=gps_lat, gps_lon=gps_lon)
                         commits_since_batch += 1
                         if commits_since_batch >= commit_every:
                             conn.commit()

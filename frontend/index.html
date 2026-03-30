@@ -528,6 +528,7 @@
       flex-direction: column;
       overflow: hidden;
     }
+    dialog.lightbox:not([open]) { display: none; }
     dialog.lightbox::backdrop {
       background: rgba(7, 8, 12, 0.72);
     }
@@ -1078,6 +1079,40 @@
       padding: 0 0.15rem;
     }
     .selected-roots .chip-root button:hover { color: var(--danger); }
+    .location-search-wrap {
+      margin-top: 0.6rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .location-search-wrap .btn-nearme {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .location-radius-label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .location-radius-label input[type="number"] {
+      width: 5rem;
+      padding: 0.3rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.82rem;
+    }
+    #locationStatusMsg {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    #locationResultsBlock .results-header { margin-top: 1.25rem; }
     .scope-actions {
       display: flex;
       flex-wrap: wrap;
@@ -1162,6 +1197,27 @@
         </div>
       </div>
     </details>
+
+    <div class="location-search-wrap" id="locationSearchWrap">
+      <button type="button" class="btn btn-ghost btn-nearme" id="nearMeBtn" title="Search photos taken near your current location">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+        Near me
+      </button>
+      <label class="location-radius-label">
+        Radius
+        <input type="number" id="locationRadius" value="10" min="1" max="5000" step="1" aria-label="Search radius in km" />
+        km
+      </label>
+      <span id="locationStatusMsg"></span>
+    </div>
+
+    <div id="locationResultsBlock" class="hidden">
+      <div class="results-header">
+        <h2>Photos near <span id="locationResultsLabel"></span></h2>
+        <button type="button" class="btn-text" id="clearLocationResults">Clear</button>
+      </div>
+      <div id="locationResults" role="region" aria-live="polite" aria-label="Location search results"></div>
+    </div>
 
     <div class="status-panel" id="statusPanel">Loading status…</div>
     <div class="index-progress-wrap" id="indexProgressWrap" hidden>
@@ -1256,6 +1312,7 @@
       </div>
       <div class="lightbox-meta" id="lightboxMeta">
         <div class="lightbox-meta-row" id="lightboxMetaDims">—</div>
+        <div class="lightbox-meta-row" id="lightboxMetaGps" hidden></div>
         <div class="lightbox-meta-row"><code id="lightboxMetaPath">—</code></div>
       </div>
       <div class="lightbox-panels">
@@ -1623,6 +1680,9 @@
 
     async function loadLightboxMeta(path, seq) {
       $("lightboxMetaDims").textContent = "Loading dimensions…";
+      const gpsEl = $("lightboxMetaGps");
+      gpsEl.hidden = true;
+      gpsEl.innerHTML = "";
       try {
         const u = new URL("/photo/meta", window.location.origin);
         u.searchParams.set("path", path);
@@ -1646,6 +1706,14 @@
           }
         }
         $("lightboxMetaDims").textContent = line || "—";
+        if (m.gps_lat != null && m.gps_lon != null) {
+          const lat = m.gps_lat.toFixed(6);
+          const lon = m.gps_lon.toFixed(6);
+          const mapUrl = "https://www.openstreetmap.org/?mlat=" + lat + "&mlon=" + lon + "&zoom=15";
+          gpsEl.innerHTML = "📍 " + lat + ", " + lon +
+            " · <a href=\"" + mapUrl + "\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"color:var(--accent2)\">View on map</a>";
+          gpsEl.hidden = false;
+        }
       } catch (e) {
         if (seq !== lightboxOpenSeq) return;
         $("lightboxMetaDims").textContent = "Could not load file details.";
@@ -2311,6 +2379,91 @@
         /* ignore */
       }
       loadRecentPhotos();
+    });
+
+    $("clearLocationResults").addEventListener("click", () => {
+      $("locationResultsBlock").classList.add("hidden");
+      $("locationResults").innerHTML = "";
+      $("locationStatusMsg").textContent = "";
+    });
+
+    $("nearMeBtn").addEventListener("click", () => {
+      const statusEl = $("locationStatusMsg");
+      const btn = $("nearMeBtn");
+      if (!navigator.geolocation) {
+        statusEl.textContent = "Geolocation not supported by your browser.";
+        return;
+      }
+      btn.disabled = true;
+      statusEl.textContent = "Getting your location…";
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const radius = parseFloat($("locationRadius").value) || 10;
+          statusEl.textContent = "Searching…";
+          try {
+            const u = new URL("/photos/near", window.location.origin);
+            u.searchParams.set("lat", lat.toFixed(7));
+            u.searchParams.set("lon", lon.toFixed(7));
+            u.searchParams.set("radius_km", radius);
+            u.searchParams.set("limit", "50");
+            const r = await fetch(u.toString());
+            if (!r.ok) throw new Error("Server error");
+            const data = await r.json();
+            btn.disabled = false;
+            statusEl.textContent = "";
+            const container = $("locationResults");
+            const block = $("locationResultsBlock");
+            const label = $("locationResultsLabel");
+            label.textContent = lat.toFixed(4) + ", " + lon.toFixed(4) + " (" + radius + " km)";
+            container.innerHTML = "";
+            if (!data.items || data.items.length === 0) {
+              container.innerHTML = '<p class="hint">No photos with GPS data found within ' + radius + ' km. Photos need to be re-indexed to capture GPS coordinates.</p>';
+            } else {
+              const grid = document.createElement("div");
+              grid.className = "grid";
+              const gallery = data.items.map((x) => x.webdav_path);
+              data.items.forEach((item, idx) => {
+                const card = document.createElement("div");
+                card.className = "card";
+                const a = document.createElement("a");
+                a.href = "#";
+                a.className = "open-full";
+                a.dataset.path = item.webdav_path;
+                const thumbWrap = document.createElement("div");
+                thumbWrap.className = "thumb";
+                thumbWrap.appendChild(createThumbImg(photoUrl(item.webdav_path, true)));
+                const meta = document.createElement("div");
+                meta.className = "meta";
+                const distEl = document.createElement("div");
+                distEl.className = "score";
+                distEl.textContent = item.distance_km.toFixed(1) + " km away";
+                meta.appendChild(distEl);
+                meta.appendChild(document.createTextNode(item.filename));
+                a.appendChild(thumbWrap);
+                a.appendChild(meta);
+                a.addEventListener("click", (ev) => {
+                  ev.preventDefault();
+                  openLightboxForPath(item.webdav_path, { gallery });
+                });
+                card.appendChild(a);
+                grid.appendChild(card);
+              });
+              container.appendChild(grid);
+            }
+            block.classList.remove("hidden");
+          } catch (e) {
+            btn.disabled = false;
+            statusEl.textContent = "Search failed: " + (e.message || "unknown error");
+          }
+        },
+        (err) => {
+          btn.disabled = false;
+          statusEl.textContent = "Could not get location: " + (err.message || "permission denied");
+        },
+        { timeout: 10000 }
+      );
     });
 
     $("brandLink").addEventListener("click", (e) => {
