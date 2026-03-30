@@ -1086,10 +1086,36 @@
       align-items: center;
       gap: 0.5rem;
     }
+    .location-place-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      flex: 1 1 14rem;
+      min-width: 0;
+    }
+    .location-place-icon {
+      position: absolute;
+      left: 0.65rem;
+      color: var(--muted);
+      pointer-events: none;
+      display: flex;
+    }
+    #locationPlace {
+      width: 100%;
+      padding: 0.55rem 0.75rem 0.55rem 2.25rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.9rem;
+    }
+    #locationPlace:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     .location-search-wrap .btn-nearme {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
+      white-space: nowrap;
     }
     .location-radius-label {
       font-size: 0.82rem;
@@ -1097,9 +1123,10 @@
       display: flex;
       align-items: center;
       gap: 0.35rem;
+      white-space: nowrap;
     }
     .location-radius-label input[type="number"] {
-      width: 5rem;
+      width: 4.5rem;
       padding: 0.3rem 0.4rem;
       border-radius: 6px;
       border: 1px solid var(--border);
@@ -1111,6 +1138,9 @@
     #locationStatusMsg {
       font-size: 0.8rem;
       color: var(--muted);
+      display: block;
+      margin-top: 0.3rem;
+      width: 100%;
     }
     #locationResultsBlock .results-header { margin-top: 1.25rem; }
     .scope-actions {
@@ -1199,8 +1229,15 @@
     </details>
 
     <div class="location-search-wrap" id="locationSearchWrap">
-      <button type="button" class="btn btn-ghost btn-nearme" id="nearMeBtn" title="Search photos taken near your current location">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+      <div class="location-place-wrap">
+        <span class="location-place-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        </span>
+        <input type="search" id="locationPlace" placeholder="City, landmark, address…" autocomplete="off" aria-label="Location to search near" />
+      </div>
+      <button type="button" class="btn btn-primary" id="locationSearchBtn">Search</button>
+      <button type="button" class="btn btn-ghost btn-nearme" id="nearMeBtn" title="Use your current GPS location">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
         Near me
       </button>
       <label class="location-radius-label">
@@ -2387,6 +2424,102 @@
       $("locationStatusMsg").textContent = "";
     });
 
+    async function geocodePlace(place) {
+      const u = new URL("https://nominatim.openstreetmap.org/search");
+      u.searchParams.set("q", place);
+      u.searchParams.set("format", "json");
+      u.searchParams.set("limit", "1");
+      const r = await fetch(u.toString(), {
+        headers: { "Accept-Language": navigator.language || "en" },
+      });
+      if (!r.ok) throw new Error("Geocoding service unavailable");
+      const results = await r.json();
+      if (!results || results.length === 0) throw new Error('Place not found: "' + place + '"');
+      return { lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon), display: results[0].display_name };
+    }
+
+    async function runLocationSearch(lat, lon, labelText, radius) {
+      const container = $("locationResults");
+      const block = $("locationResultsBlock");
+      $("locationResultsLabel").textContent = labelText + " (" + radius + " km)";
+      container.innerHTML = '<p class="hint">Searching…</p>';
+      block.classList.remove("hidden");
+      block.scrollIntoView({ behavior: "smooth", block: "start" });
+      try {
+        const u = new URL("/photos/near", window.location.origin);
+        u.searchParams.set("lat", lat.toFixed(7));
+        u.searchParams.set("lon", lon.toFixed(7));
+        u.searchParams.set("radius_km", radius);
+        u.searchParams.set("limit", "50");
+        const r = await fetch(u.toString());
+        if (!r.ok) throw new Error("Server error");
+        const data = await r.json();
+        container.innerHTML = "";
+        if (!data.items || data.items.length === 0) {
+          container.innerHTML =
+            '<p class="hint">No photos with GPS data found within ' + radius +
+            " km. Photos need to be re-indexed to capture GPS coordinates.</p>";
+        } else {
+          const grid = document.createElement("div");
+          grid.className = "grid";
+          const gallery = data.items.map((x) => x.webdav_path);
+          data.items.forEach((item) => {
+            const card = document.createElement("div");
+            card.className = "card";
+            const a = document.createElement("a");
+            a.href = "#";
+            a.className = "open-full";
+            a.dataset.path = item.webdav_path;
+            const thumbWrap = document.createElement("div");
+            thumbWrap.className = "thumb";
+            thumbWrap.appendChild(createThumbImg(photoUrl(item.webdav_path, true)));
+            const meta = document.createElement("div");
+            meta.className = "meta";
+            const distEl = document.createElement("div");
+            distEl.className = "score";
+            distEl.textContent = item.distance_km.toFixed(1) + " km away";
+            meta.appendChild(distEl);
+            meta.appendChild(document.createTextNode(item.filename));
+            a.appendChild(thumbWrap);
+            a.appendChild(meta);
+            a.addEventListener("click", (ev) => {
+              ev.preventDefault();
+              openLightboxForPath(item.webdav_path, { gallery });
+            });
+            card.appendChild(a);
+            grid.appendChild(card);
+          });
+          container.appendChild(grid);
+        }
+      } catch (e) {
+        container.innerHTML =
+          '<p class="error-msg">Search failed: ' + escapeHtml(e.message || "unknown error") + "</p>";
+      }
+    }
+
+    $("locationSearchBtn").addEventListener("click", async () => {
+      const place = ($("locationPlace").value || "").trim();
+      if (!place) return;
+      const statusEl = $("locationStatusMsg");
+      const btn = $("locationSearchBtn");
+      const radius = parseFloat($("locationRadius").value) || 10;
+      btn.disabled = true;
+      statusEl.textContent = "Looking up \u201c" + place + "\u201d\u2026";
+      try {
+        const geo = await geocodePlace(place);
+        statusEl.textContent = "";
+        await runLocationSearch(geo.lat, geo.lon, geo.display.split(",")[0], radius);
+      } catch (e) {
+        statusEl.textContent = e.message || "Could not find that place.";
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    $("locationPlace").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") $("locationSearchBtn").click();
+    });
+
     $("nearMeBtn").addEventListener("click", () => {
       const statusEl = $("locationStatusMsg");
       const btn = $("nearMeBtn");
@@ -2398,65 +2531,14 @@
       statusEl.textContent = "Getting your location…";
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
+          btn.disabled = false;
+          statusEl.textContent = "";
           const radius = parseFloat($("locationRadius").value) || 10;
-          statusEl.textContent = "Searching…";
-          try {
-            const u = new URL("/photos/near", window.location.origin);
-            u.searchParams.set("lat", lat.toFixed(7));
-            u.searchParams.set("lon", lon.toFixed(7));
-            u.searchParams.set("radius_km", radius);
-            u.searchParams.set("limit", "50");
-            const r = await fetch(u.toString());
-            if (!r.ok) throw new Error("Server error");
-            const data = await r.json();
-            btn.disabled = false;
-            statusEl.textContent = "";
-            const container = $("locationResults");
-            const block = $("locationResultsBlock");
-            const label = $("locationResultsLabel");
-            label.textContent = lat.toFixed(4) + ", " + lon.toFixed(4) + " (" + radius + " km)";
-            container.innerHTML = "";
-            if (!data.items || data.items.length === 0) {
-              container.innerHTML = '<p class="hint">No photos with GPS data found within ' + radius + ' km. Photos need to be re-indexed to capture GPS coordinates.</p>';
-            } else {
-              const grid = document.createElement("div");
-              grid.className = "grid";
-              const gallery = data.items.map((x) => x.webdav_path);
-              data.items.forEach((item, idx) => {
-                const card = document.createElement("div");
-                card.className = "card";
-                const a = document.createElement("a");
-                a.href = "#";
-                a.className = "open-full";
-                a.dataset.path = item.webdav_path;
-                const thumbWrap = document.createElement("div");
-                thumbWrap.className = "thumb";
-                thumbWrap.appendChild(createThumbImg(photoUrl(item.webdav_path, true)));
-                const meta = document.createElement("div");
-                meta.className = "meta";
-                const distEl = document.createElement("div");
-                distEl.className = "score";
-                distEl.textContent = item.distance_km.toFixed(1) + " km away";
-                meta.appendChild(distEl);
-                meta.appendChild(document.createTextNode(item.filename));
-                a.appendChild(thumbWrap);
-                a.appendChild(meta);
-                a.addEventListener("click", (ev) => {
-                  ev.preventDefault();
-                  openLightboxForPath(item.webdav_path, { gallery });
-                });
-                card.appendChild(a);
-                grid.appendChild(card);
-              });
-              container.appendChild(grid);
-            }
-            block.classList.remove("hidden");
-          } catch (e) {
-            btn.disabled = false;
-            statusEl.textContent = "Search failed: " + (e.message || "unknown error");
-          }
+          await runLocationSearch(
+            pos.coords.latitude, pos.coords.longitude,
+            pos.coords.latitude.toFixed(4) + ", " + pos.coords.longitude.toFixed(4),
+            radius
+          );
         },
         (err) => {
           btn.disabled = false;

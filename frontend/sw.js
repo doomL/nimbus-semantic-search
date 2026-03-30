@@ -1,5 +1,5 @@
 /* Nimbus PWA — cache shell only; API/WebDAV stay network-only. */
-const CACHE_NAME = "nimbus-shell-v2";
+const CACHE_NAME = "nimbus-shell-v3";
 const PRECACHE_URLS = [
   "/",
   "/assets/manifest.webmanifest",
