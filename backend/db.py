@@ -54,7 +54,9 @@ def init_db(db_path: str) -> sqlite3.Connection:
             webdav_path TEXT UNIQUE NOT NULL,
             filename TEXT NOT NULL,
             embedding BLOB NOT NULL,
-            indexed_at TEXT NOT NULL
+            indexed_at TEXT NOT NULL,
+            gps_lat REAL,
+            gps_lon REAL
         );
 
         CREATE INDEX IF NOT EXISTS idx_photos_path ON photos(webdav_path);
@@ -85,6 +87,12 @@ def init_db(db_path: str) -> sqlite3.Connection:
         );
         """
     )
+    # Migrate: add GPS columns to existing databases that predate this feature.
+    for col in ("gps_lat", "gps_lon"):
+        try:
+            _conn.execute(f"ALTER TABLE photos ADD COLUMN {col} REAL")
+        except Exception:
+            pass  # Column already exists
     _conn.commit()
     _refresh_photo_count_cache(_conn)
     return _conn
@@ -127,6 +135,8 @@ def insert_photo(
     filename: str,
     embedding_f32: bytes,
     indexed_at: Optional[str] = None,
+    gps_lat: Optional[float] = None,
+    gps_lon: Optional[float] = None,
 ) -> int:
     """Insert a row into photos and vec_photos. embedding_f32 is float32 blob (512 dims)."""
     if indexed_at is None:
@@ -134,10 +144,10 @@ def insert_photo(
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO photos (webdav_path, filename, embedding, indexed_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO photos (webdav_path, filename, embedding, indexed_at, gps_lat, gps_lon)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (webdav_path, filename, embedding_f32, indexed_at),
+        (webdav_path, filename, embedding_f32, indexed_at, gps_lat, gps_lon),
     )
     pid = int(cur.lastrowid)
     cur.execute(
@@ -187,6 +197,47 @@ def get_photo_indexed_at(
         (webdav_path,),
     ).fetchone()
     return str(row[0]) if row else None
+
+
+def get_photo_gps(
+    conn: sqlite3.Connection, webdav_path: str
+) -> Optional[Tuple[float, float]]:
+    """Return (lat, lon) for the given path, or None if no GPS data stored."""
+    row = conn.execute(
+        "SELECT gps_lat, gps_lon FROM photos WHERE webdav_path = ? LIMIT 1",
+        (webdav_path,),
+    ).fetchone()
+    if not row or row[0] is None or row[1] is None:
+        return None
+    return (float(row[0]), float(row[1]))
+
+
+def search_by_location(
+    conn: sqlite3.Connection,
+    lat_min: float,
+    lat_max: float,
+    lon_min: float,
+    lon_max: float,
+    limit: int = 50,
+) -> List[Tuple[str, str, float, float]]:
+    """
+    Return photos whose GPS coordinates fall within the bounding box.
+    Results: [(webdav_path, filename, gps_lat, gps_lon), ...].
+    """
+    rows = conn.execute(
+        """
+        SELECT webdav_path, filename, gps_lat, gps_lon
+        FROM photos
+        WHERE gps_lat IS NOT NULL
+          AND gps_lon IS NOT NULL
+          AND gps_lat BETWEEN ? AND ?
+          AND gps_lon BETWEEN ? AND ?
+        ORDER BY indexed_at DESC
+        LIMIT ?
+        """,
+        (lat_min, lat_max, lon_min, lon_max, limit),
+    ).fetchall()
+    return [(str(p), str(f), float(la), float(lo)) for p, f, la, lo in rows]
 
 
 def search_similar(

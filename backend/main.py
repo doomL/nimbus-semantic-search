@@ -48,15 +48,17 @@ from db import (  # noqa: E402
     count_photos,
     get_connection,
     get_index_roots,
+    get_photo_gps,
     get_photo_indexed_at,
     init_db,
     list_index_failures,
     list_recent_photos,
     numpy_to_blob,
+    search_by_location,
     search_similar_to_embedding,
     set_index_roots,
 )
-from image_io import load_rgb_image  # noqa: E402
+from image_io import extract_gps_from_bytes, load_rgb_image  # noqa: E402
 from indexer import list_immediate_subdirs, run_index_job  # noqa: E402
 from search import search_photos  # noqa: E402
 from tag_stats import (  # noqa: E402
@@ -479,14 +481,21 @@ def photo_meta(
         logger.warning("Photo meta decode failed for %s: %s", raw_path, e)
         raise HTTPException(400, "Could not read image dimensions") from e
     indexed_at: str | None = None
+    gps: tuple | None = None
     with db_lock:
         indexed_at = get_photo_indexed_at(get_connection(), raw_path)
+        gps = get_photo_gps(get_connection(), raw_path)
+    # If not in DB yet, try extracting live from the downloaded bytes.
+    if gps is None:
+        gps = extract_gps_from_bytes(data)
     return {
         "webdav_path": raw_path,
         "width": int(img.width),
         "height": int(img.height),
         "format": (img.format or "").upper() or None,
         "indexed_at": indexed_at,
+        "gps_lat": gps[0] if gps else None,
+        "gps_lon": gps[1] if gps else None,
     }
 
 
@@ -530,6 +539,65 @@ def photos_similar(
             }
         )
     return {"query_path": raw_path, "items": items}
+
+
+import math as _math  # noqa: E402
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in kilometres between two (lat, lon) points."""
+    R = 6371.0
+    dlat = _math.radians(lat2 - lat1)
+    dlon = _math.radians(lon2 - lon1)
+    a = (
+        _math.sin(dlat / 2) ** 2
+        + _math.cos(_math.radians(lat1))
+        * _math.cos(_math.radians(lat2))
+        * _math.sin(dlon / 2) ** 2
+    )
+    return R * 2 * _math.atan2(_math.sqrt(a), _math.sqrt(1 - a))
+
+
+@app.get("/photos/near")
+def photos_near(
+    lat: float = Query(..., ge=-90, le=90, description="Centre latitude"),
+    lon: float = Query(..., ge=-180, le=180, description="Centre longitude"),
+    radius_km: float = Query(10.0, ge=0.1, le=5000, description="Search radius in km"),
+    limit: int = Query(50, ge=1, le=200),
+) -> Dict[str, Any]:
+    """Return photos whose GPS coordinates are within radius_km of (lat, lon)."""
+    # Approximate bounding box to pre-filter (1 degree lat ≈ 111 km)
+    dlat = radius_km / 111.0
+    dlon = radius_km / (111.0 * _math.cos(_math.radians(lat)) + 1e-9)
+    with db_lock:
+        rows = search_by_location(
+            get_connection(),
+            lat_min=lat - dlat,
+            lat_max=lat + dlat,
+            lon_min=lon - dlon,
+            lon_max=lon + dlon,
+            limit=limit * 2,  # over-fetch to allow haversine trim
+        )
+    items = []
+    for webdav_path, filename, gps_lat, gps_lon in rows:
+        dist = _haversine_km(lat, lon, gps_lat, gps_lon)
+        if dist <= radius_km:
+            items.append(
+                {
+                    "webdav_path": webdav_path,
+                    "filename": filename,
+                    "gps_lat": gps_lat,
+                    "gps_lon": gps_lon,
+                    "distance_km": round(dist, 3),
+                }
+            )
+    items.sort(key=lambda x: x["distance_km"])
+    return {
+        "lat": lat,
+        "lon": lon,
+        "radius_km": radius_km,
+        "items": items[:limit],
+    }
 
 
 @app.get("/index/failures")
