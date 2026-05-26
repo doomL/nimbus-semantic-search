@@ -444,8 +444,9 @@ def index_status() -> Dict[str, Any]:
 @app.get("/search")
 def search(
     q: str = Query(..., min_length=1, max_length=500, description="Natural language query"),
+    k: int = Query(20, ge=1, le=500, description="Max results to return"),
 ) -> Dict[str, Any]:
-    out = search_photos(q, k=20)
+    out = search_photos(q, k=k)
     return {"query": q.strip(), **out}
 
 

@@ -1372,6 +1372,8 @@
     const LEGACY_RECENT = atob("cGNsb3VkLWNsaXAtcmVjZW50");
     const MAX_RECENT = 10;
     const SESSION_SEARCH_KEY = "nimbus-session-search";
+    const SEARCH_PAGE_SIZE = 20;
+    let _searchK = SEARCH_PAGE_SIZE;
 
     function migrateStorage() {
       if (!localStorage.getItem(THEME_KEY) && localStorage.getItem(LEGACY_THEME)) {
@@ -2224,6 +2226,76 @@
       }
     }
 
+    function _renderSearchResults(container, data, k) {
+      const strong = data.results || [];
+      const weak = data.weak_results || [];
+      if (strong.length === 0 && weak.length === 0) {
+        container.innerHTML =
+          '<p class="empty" role="status">No photos matched that phrase. Try different words, pick a suggestion below, or index if your library is new.</p>';
+        return;
+      }
+      const galleryPaths = []
+        .concat(strong.map((x) => x.webdav_path))
+        .concat(weak.map((x) => x.webdav_path));
+      try {
+        sessionStorage.setItem(
+          SESSION_SEARCH_KEY,
+          JSON.stringify({ q: $("q").value.trim(), gallery: galleryPaths })
+        );
+      } catch (e) {
+        /* ignore */
+      }
+      container.innerHTML = "";
+      if (strong.length > 0) {
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        appendResultCards(grid, strong, false, galleryPaths);
+        container.appendChild(grid);
+      }
+      if (weak.length > 0) {
+        const wrap = document.createElement("div");
+        wrap.className = "weak-results-block";
+        const smin =
+          typeof data.strong_min === "number"
+            ? (data.strong_min * 100).toFixed(0)
+            : "22";
+        wrap.innerHTML =
+          "<h3>Weaker matches</h3><p class=\"weak-hint\">Below ~" +
+          smin +
+          "% similarity — still related, but less confident.</p>";
+        const wgrid = document.createElement("div");
+        wgrid.className = "grid";
+        appendResultCards(wgrid, weak, true, galleryPaths);
+        wrap.appendChild(wgrid);
+        container.appendChild(wrap);
+      }
+      // Show "Load more" only if we received exactly k results (there may be more)
+      const total = strong.length + weak.length;
+      if (total >= k) {
+        const moreWrap = document.createElement("div");
+        moreWrap.style.cssText = "text-align:center;margin-top:1.75rem";
+        const moreBtn = document.createElement("button");
+        moreBtn.type = "button";
+        moreBtn.className = "btn btn-ghost";
+        moreBtn.textContent = "Carica altri " + SEARCH_PAGE_SIZE;
+        moreBtn.addEventListener("click", () => {
+          _searchK += SEARCH_PAGE_SIZE;
+          moreBtn.disabled = true;
+          moreBtn.textContent = "Caricamento…";
+          const q = $("q").value.trim();
+          fetch("/search?q=" + encodeURIComponent(q) + "&k=" + _searchK)
+            .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+            .then((d) => _renderSearchResults(container, d, _searchK))
+            .catch(() => {
+              moreBtn.disabled = false;
+              moreBtn.textContent = "Carica altri " + SEARCH_PAGE_SIZE;
+            });
+        });
+        moreWrap.appendChild(moreBtn);
+        container.appendChild(moreWrap);
+      }
+    }
+
     function runSearch() {
       const q = $("q").value.trim();
       const container = $("results");
@@ -2240,6 +2312,7 @@
         loadRecentPhotos();
         return;
       }
+      _searchK = SEARCH_PAGE_SIZE;
       $("welcomeBlock").classList.add("hidden");
       $("discoverSection").classList.remove("hidden");
       $("resultsBlock").classList.remove("hidden");
@@ -2258,7 +2331,7 @@
       saveRecent(q);
       renderRecent();
 
-      fetch("/search?q=" + encodeURIComponent(q))
+      fetch("/search?q=" + encodeURIComponent(q) + "&k=" + _searchK)
         .then((r) => {
           if (r.status === 422) {
             container.innerHTML =
@@ -2270,48 +2343,7 @@
         })
         .then((data) => {
           if (!data) return;
-          const strong = data.results || [];
-          const weak = data.weak_results || [];
-          if (strong.length === 0 && weak.length === 0) {
-            container.innerHTML =
-              '<p class="empty" role="status">No photos matched that phrase. Try different words, pick a suggestion below, or index if your library is new.</p>';
-            return;
-          }
-          const galleryPaths = []
-            .concat(strong.map((x) => x.webdav_path))
-            .concat(weak.map((x) => x.webdav_path));
-          try {
-            sessionStorage.setItem(
-              SESSION_SEARCH_KEY,
-              JSON.stringify({ q: q, gallery: galleryPaths })
-            );
-          } catch (e) {
-            /* ignore */
-          }
-          container.innerHTML = "";
-          if (strong.length > 0) {
-            const grid = document.createElement("div");
-            grid.className = "grid";
-            appendResultCards(grid, strong, false, galleryPaths);
-            container.appendChild(grid);
-          }
-          if (weak.length > 0) {
-            const wrap = document.createElement("div");
-            wrap.className = "weak-results-block";
-            const smin =
-              typeof data.strong_min === "number"
-                ? (data.strong_min * 100).toFixed(0)
-                : "22";
-            wrap.innerHTML =
-              "<h3>Weaker matches</h3><p class=\"weak-hint\">Below ~" +
-              smin +
-              "% similarity — still related, but less confident.</p>";
-            const wgrid = document.createElement("div");
-            wgrid.className = "grid";
-            appendResultCards(wgrid, weak, true, galleryPaths);
-            wrap.appendChild(wgrid);
-            container.appendChild(wrap);
-          }
+          _renderSearchResults(container, data, _searchK);
         })
         .catch(() => {
           container.innerHTML =
