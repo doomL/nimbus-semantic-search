@@ -21,7 +21,7 @@ from db import (
     path_exists,
     record_index_failure,
 )
-from image_io import extract_gps_from_bytes, load_rgb_image
+from image_io import extract_frame_from_video_bytes, extract_gps_from_bytes, load_rgb_image
 from tag_stats import recompute_library_tags_background
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,8 @@ except ImportError:
     logger.warning("pillow-heif not available; HEIC support may be limited")
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".webp"}
+VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".m4v", ".webm", ".3gp"}
+_MEDIA_SUFFIXES = IMAGE_SUFFIXES | VIDEO_SUFFIXES
 
 
 def _retry_call(
@@ -87,12 +89,20 @@ def _basename(path: str) -> str:
     return p.rsplit("/", 1)[-1] if p else ""
 
 
-def _is_image_path(webdav_path: str) -> bool:
+def _is_media_path(webdav_path: str) -> bool:
     lower = _basename(webdav_path).lower()
     dot = lower.rfind(".")
     if dot < 0:
         return False
-    return lower[dot:] in IMAGE_SUFFIXES
+    return lower[dot:] in _MEDIA_SUFFIXES
+
+
+def _is_video_path(webdav_path: str) -> bool:
+    lower = _basename(webdav_path).lower()
+    dot = lower.rfind(".")
+    if dot < 0:
+        return False
+    return lower[dot:] in VIDEO_SUFFIXES
 
 
 def _should_skip_dir(webdav_path: str) -> bool:
@@ -181,7 +191,7 @@ def _collect_image_paths(client: Client, path: str, out: List[str]) -> None:
                 logger.debug("Skipping directory: %s", full)
                 continue
             _collect_image_paths(client, full, out)
-        elif typ == "file" and _is_image_path(full):
+        elif typ == "file" and _is_media_path(full):
             out.append(full)
 
 
@@ -211,16 +221,20 @@ def _download_image_data(
     client: Client, webdav_path: str
 ) -> tuple:
     """
-    Download image, CLIP-encode, and extract GPS.
+    Download media file, CLIP-encode, and extract GPS (images only).
     Returns (embedding_blob: bytes, gps_lat: float|None, gps_lon: float|None).
     """
     data = _download_image_bytes(client, webdav_path)
-    gps = extract_gps_from_bytes(data)
-    img = load_rgb_image(data, source=webdav_path)
+    if _is_video_path(webdav_path):
+        img = extract_frame_from_video_bytes(data, source=webdav_path)
+        lat, lon = None, None
+    else:
+        gps = extract_gps_from_bytes(data)
+        img = load_rgb_image(data, source=webdav_path)
+        lat = gps[0] if gps else None
+        lon = gps[1] if gps else None
     vec = encode_image_pil(img)
     blob = numpy_to_blob(vec)
-    lat = gps[0] if gps else None
-    lon = gps[1] if gps else None
     return blob, lat, lon
 
 

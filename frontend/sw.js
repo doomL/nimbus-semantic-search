@@ -1,5 +1,5 @@
 /* Nimbus PWA — cache shell only; API/WebDAV stay network-only. */
-const CACHE_NAME = "nimbus-shell-v4";
+const CACHE_NAME = "nimbus-shell-v5";
 const PRECACHE_URLS = [
   "/",
   "/app",
@@ -16,6 +16,7 @@ function isApiOrDynamic(pathname) {
   if (pathname.startsWith("/photo")) return true;
   if (pathname.startsWith("/index")) return true;
   if (pathname.startsWith("/tags")) return true;
+  if (pathname.startsWith("/agent-search")) return true;
   return false;
 }
 

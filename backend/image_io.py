@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import tempfile
 from io import BytesIO
 from typing import Optional, Tuple
 
@@ -47,6 +50,38 @@ def extract_gps_from_bytes(data: bytes) -> Optional[Tuple[float, float]]:
         return (lat, lon)
     except Exception:
         return None
+
+
+def extract_frame_from_video_bytes(data: bytes, *, source: str = "") -> Image.Image:
+    """Extract one representative frame from video bytes via ffmpeg; returns RGB PIL image."""
+    if not data:
+        suffix = f" ({source})" if source else ""
+        raise ValueError(f"Empty video data{suffix}")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".video") as tmp:
+        tmp.write(data)
+        tmp_path = tmp.name
+
+    try:
+        # Try at 1 second first to skip potential black intro frames.
+        result = None
+        for seek in (["-ss", "1"], []):
+            result = subprocess.run(
+                ["ffmpeg", "-y", *seek, "-i", tmp_path,
+                 "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"],
+                capture_output=True,
+                timeout=60,
+            )
+            if result.stdout:
+                break
+
+        if not result or not result.stdout:
+            suffix = f" ({source})" if source else ""
+            raise ValueError(f"ffmpeg returned no frame data{suffix}")
+
+        return Image.open(BytesIO(result.stdout)).convert("RGB")
+    finally:
+        os.unlink(tmp_path)
 
 
 def load_rgb_image(data: bytes, *, source: str = "") -> Image.Image:

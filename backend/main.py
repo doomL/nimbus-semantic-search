@@ -58,7 +58,8 @@ from db import (  # noqa: E402
     search_similar_to_embedding,
     set_index_roots,
 )
-from image_io import extract_gps_from_bytes, load_rgb_image  # noqa: E402
+from image_io import extract_frame_from_video_bytes, extract_gps_from_bytes, load_rgb_image  # noqa: E402
+from agent import agent_search  # noqa: E402
 from indexer import list_immediate_subdirs, run_index_job  # noqa: E402
 from search import search_photos  # noqa: E402
 from tag_stats import (  # noqa: E402
@@ -457,8 +458,25 @@ def index_status() -> Dict[str, Any]:
 def search(
     q: str = Query(..., min_length=1, max_length=500, description="Natural language query"),
     k: int = Query(20, ge=1, le=500, description="Max results to return"),
+    media_type: str = Query("all", pattern="^(all|image|video)$", description="Filter by media type"),
 ) -> Dict[str, Any]:
-    out = search_photos(q, k=k)
+    out = search_photos(q, k=k, media_type=media_type)
+    return {"query": q.strip(), **out}
+
+
+@app.get("/agent-search")
+def agent_search_endpoint(
+    q: str = Query(..., min_length=1, max_length=1000, description="Natural language query in any language"),
+    k: int = Query(20, ge=1, le=200, description="Max results to return"),
+    media_type: str = Query("all", pattern="^(all|image|video)$", description="Filter by media type"),
+) -> Dict[str, Any]:
+    try:
+        out = agent_search(q, k=k, media_type=media_type)
+    except RuntimeError as e:
+        raise HTTPException(503, str(e)) from e
+    except Exception as e:
+        logger.exception("Agent search failed: %s", e)
+        raise HTTPException(500, "Agent search failed") from e
     return {"query": q.strip(), **out}
 
 
@@ -664,8 +682,28 @@ def tags_recompute() -> JSONResponse:
     return JSONResponse({"started": True})
 
 
+_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".m4v", ".webm", ".3gp"}
+_VIDEO_MEDIA_TYPES = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+    ".mkv": "video/x-matroska",
+    ".m4v": "video/x-m4v",
+    ".webm": "video/webm",
+    ".3gp": "video/3gpp",
+}
+
+
+def _source_ext(source: str) -> str:
+    dot = source.lower().rfind(".")
+    return source[dot:].lower() if dot >= 0 else ""
+
+
 def _thumb_bytes(data: bytes, max_px: int = 300, *, source: str = "") -> bytes:
-    img = load_rgb_image(data, source=source)
+    if _source_ext(source) in _VIDEO_EXTS:
+        img = extract_frame_from_video_bytes(data, source=source)
+    else:
+        img = load_rgb_image(data, source=source)
     img.thumbnail((max_px, max_px), Image.Resampling.LANCZOS)
     out = BytesIO()
     img.save(out, format="JPEG", quality=85)
@@ -711,14 +749,16 @@ def photo_proxy(
     if thumb:
         media = "image/jpeg"
     else:
-        lower = raw_path.lower()
-        if lower.endswith(".png"):
+        ext = _source_ext(raw_path)
+        if ext in _VIDEO_MEDIA_TYPES:
+            media = _VIDEO_MEDIA_TYPES[ext]
+        elif ext == ".png":
             media = "image/png"
-        elif lower.endswith((".jpg", ".jpeg")):
+        elif ext in (".jpg", ".jpeg"):
             media = "image/jpeg"
-        elif lower.endswith(".webp"):
+        elif ext == ".webp":
             media = "image/webp"
-        elif lower.endswith(".heic"):
+        elif ext == ".heic":
             media = "image/heic"
         else:
             media = "application/octet-stream"
