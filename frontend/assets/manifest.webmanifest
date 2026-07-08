@@ -2,7 +2,7 @@
   "name": "Nimbus — semantic photo search",
   "short_name": "Nimbus",
   "description": "Self-hosted semantic photo search over WebDAV. Natural-language queries; vector index in SQLite.",
-  "start_url": "/",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

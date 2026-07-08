@@ -1,7 +1,8 @@
 /* Nimbus PWA — cache shell only; API/WebDAV stay network-only. */
-const CACHE_NAME = "nimbus-shell-v3";
+const CACHE_NAME = "nimbus-shell-v4";
 const PRECACHE_URLS = [
   "/",
+  "/app",
   "/assets/manifest.webmanifest",
   "/assets/logo.svg",
   "/assets/logo-banner.svg",
@@ -73,8 +74,8 @@ self.addEventListener("fetch", (event) => {
       .catch(() =>
         caches.match(req).then((cached) => {
           if (cached) return cached;
-          if (url.pathname === "/" || url.pathname === "/index.html") {
-            return caches.match("/");
+          if (url.pathname === "/" || url.pathname === "/app" || url.pathname === "/index.html") {
+            return caches.match(url.pathname === "/app" ? "/app" : "/");
           }
           return Promise.reject(new Error("offline"));
         }),
