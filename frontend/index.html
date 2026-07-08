@@ -131,12 +131,30 @@
       letter-spacing: 0.14em;
       font-weight: 600;
     }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .topbar-link {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 0.45rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .topbar-link:hover {
+      color: var(--accent);
+      border-color: var(--border);
+    }
     .theme-toggle {
       display: flex;
       align-items: center;
       gap: 0.5rem;
       padding: 0.45rem 0.75rem;
-      border-radius: 999px;
       border: 1px solid var(--border);
       background: var(--surface);
       color: var(--text);
@@ -744,6 +762,7 @@
     .hidden { display: none !important; }
     .btn:focus-visible,
     .chip:focus-visible,
+    .topbar-link:focus-visible,
     .theme-toggle:focus-visible,
     .btn-text:focus-visible,
     .lightbox-download:focus-visible,
@@ -1168,10 +1187,13 @@
           <span>Semantic search</span>
         </div>
       </a>
-      <button type="button" class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">
-        <span id="themeIcon"></span>
-        <span id="themeLabel">Dark</span>
-      </button>
+      <div class="topbar-actions">
+        <a class="topbar-link" href="/">Info</a>
+        <button type="button" class="theme-toggle" id="themeBtn" aria-label="Toggle color theme">
+          <span id="themeIcon"></span>
+          <span id="themeLabel">Dark</span>
+        </button>
+      </div>
     </header>
 
     <section class="hero">

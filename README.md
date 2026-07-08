@@ -82,7 +82,7 @@ flowchart LR
    docker compose up --build
    ```
 
-4. Open **http://localhost:8000**, run **Index photos** when credentials are valid, then search.
+4. Open **http://localhost:8000/app**, run **Index photos** when credentials are valid, then search.
 
 The database is persisted at `./data/photos.db` on the host.
 
@@ -140,7 +140,8 @@ Use a **strong password**; Basic Auth sends credentials **Base64-encoded** (not 
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/` | Web UI |
+| `GET` | `/` | Landing page |
+| `GET` | `/app` | Web UI (search app) |
 | `GET` | `/health` | Liveness + `version`, `indexed` count, `database` status |
 | `POST` | `/index` | Start background indexing |
 | `GET` | `/index/status` | Indexing progress and DB counts |

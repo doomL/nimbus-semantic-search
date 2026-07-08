@@ -69,17 +69,22 @@ from tag_stats import (  # noqa: E402
 BASE_DIR = Path(__file__).resolve().parent
 
 
-def _resolve_frontend_index() -> Path:
+def _resolve_frontend_dir() -> Path:
     """Support repo layout (backend/ + frontend/) and flat Docker layout (/app + /app/frontend/)."""
     here = BASE_DIR
-    flat = here / "frontend" / "index.html"
-    if flat.is_file():
+    flat = here / "frontend"
+    if (flat / "index.html").is_file():
         return flat
-    return here.parent / "frontend" / "index.html"
+    return here.parent / "frontend"
 
 
-FRONTEND_INDEX = _resolve_frontend_index()
-FRONTEND_DIR = FRONTEND_INDEX.parent
+def _resolve_frontend_file(name: str) -> Path:
+    return _resolve_frontend_dir() / name
+
+
+FRONTEND_DIR = _resolve_frontend_dir()
+FRONTEND_INDEX = _resolve_frontend_file("index.html")
+FRONTEND_LANDING = _resolve_frontend_file("landing.html")
 _ASSETS_DIR = FRONTEND_DIR / "assets"
 
 _REPO_ROOT = FRONTEND_INDEX.parent.parent if FRONTEND_INDEX.parent.name == "frontend" else BASE_DIR
@@ -396,7 +401,14 @@ def health() -> Dict[str, Any]:
 
 
 @app.get("/", response_class=FileResponse)
-def serve_index() -> FileResponse:
+def serve_landing() -> FileResponse:
+    if not FRONTEND_LANDING.is_file():
+        raise HTTPException(500, "frontend/landing.html not found")
+    return FileResponse(FRONTEND_LANDING)
+
+
+@app.get("/app", response_class=FileResponse)
+def serve_app() -> FileResponse:
     if not FRONTEND_INDEX.is_file():
         raise HTTPException(500, "frontend/index.html not found")
     return FileResponse(FRONTEND_INDEX)
