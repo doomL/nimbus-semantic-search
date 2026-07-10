@@ -206,7 +206,7 @@ app = FastAPI(
 
 
 def _basic_auth_credentials() -> tuple[str, str] | None:
-    """If both user and password are set, require HTTP Basic Auth on every request."""
+    """If both user and password are set, require HTTP Basic Auth on /app and API routes."""
     user = os.environ.get("NIMBUS_AUTH_USER", "").strip()
     password = os.environ.get("NIMBUS_AUTH_PASSWORD", "")
     if not user or not password:
@@ -216,10 +216,14 @@ def _basic_auth_credentials() -> tuple[str, str] | None:
 
 def _basic_auth_exempt_path(path: str) -> bool:
     """
-    PWA bootstrap URLs: browsers often fetch manifest / SW without Authorization,
-    so they must bypass Basic Auth. Only metadata + icons — the app UI and API
-    stay protected.
+    Public URLs that bypass Basic Auth: landing page, legal, landing assets, and
+    PWA bootstrap (browsers often fetch manifest / SW without Authorization).
+    /app and all API routes stay protected.
     """
+    if path in ("/", "/LICENSE"):
+        return True
+    if path in ("/assets/logo.svg", "/assets/logo-banner.svg"):
+        return True
     if path == "/sw.js":
         return True
     if path == "/assets/manifest.webmanifest":

@@ -117,7 +117,7 @@ cd backend && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `PCLOUD_PASSWORD` | Password or app token. |
 | `DB_PATH` | SQLite file path (Docker default: `/app/data/photos.db`). |
 | `TAG_SIMILARITY_THRESHOLD` | Optional. Cosine similarity threshold (default `0.27`) for library tag counts (see below). |
-| `NIMBUS_AUTH_USER` | Optional. If set **together with** `NIMBUS_AUTH_PASSWORD`, enables **HTTP Basic Auth** on the whole app (see **Security**). |
+| `NIMBUS_AUTH_USER` | Optional. If set **together with** `NIMBUS_AUTH_PASSWORD`, enables **HTTP Basic Auth** on `/app` and the API (see **Security**). The landing page (`/`) stays public. |
 | `NIMBUS_AUTH_PASSWORD` | Optional. Password for Basic Auth (use a long random value on a VPS). |
 | `NIMBUS_AUTO_INDEX_INTERVAL_HOURS` | Optional. If set (e.g. `24`), the server **automatically** starts an index crawl on that interval (UTC). **Requires** Docker/process to stay running. First run is delayed by `NIMBUS_AUTO_INDEX_FIRST_DELAY_MINUTES`. |
 | `NIMBUS_AUTO_INDEX_FIRST_DELAY_MINUTES` | Optional. Minutes after startup before the **first** `NIMBUS_AUTO_INDEX_INTERVAL_HOURS` run (default `5`). |
@@ -132,7 +132,7 @@ Stats refresh automatically after an index run, or via **Refresh tag stats** / `
 
 By default the app **has no login**: anyone who can reach the port can use the UI and API. On a **VPS**, put Nimbus **behind a firewall** (only your IP or a VPN), terminate **HTTPS** in front (Caddy, nginx, Traefik), and/or enable **app-level auth**:
 
-Set **`NIMBUS_AUTH_USER`** and **`NIMBUS_AUTH_PASSWORD`** in `.env`. The server then requires **HTTP Basic Authentication** for the UI and API. **`/assets/manifest.webmanifest`**, **`/sw.js`**, and the **PWA icon PNGs** are exempt so browsers can load the manifest and service worker (they often omit `Authorization` on those requests). Everything else stays protected.
+Set **`NIMBUS_AUTH_USER`** and **`NIMBUS_AUTH_PASSWORD`** in `.env`. The server then requires **HTTP Basic Authentication** for **`/app`** and all **API routes**. The **landing page** (`/`), **`/LICENSE`**, and assets used by the landing remain public. **`/assets/manifest.webmanifest`**, **`/sw.js`**, and the **PWA icon PNGs** are also exempt so browsers can load the manifest and service worker (they often omit `Authorization` on those requests).
 
 Use a **strong password**; Basic Auth sends credentials **Base64-encoded** (not encryption) — **HTTPS is strongly recommended** on public networks. For stricter setups (OAuth, SSO), put a reverse proxy or identity provider in front instead.
 
