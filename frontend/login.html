@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c0e12" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Nimbus — accedi</title>
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #07080c;
+      --bg1: #0c0e14;
+      --surface: #12151c;
+      --border: #2a3140;
+      --text: #eef1f7;
+      --muted: #8b95aa;
+      --accent: #2dd4bf;
+      --accent2: #38bdf8;
+      --danger: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 0%, #132030 0%, var(--bg0) 60%);
+      color: var(--text);
+      font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .logo img { width: 28px; height: 28px; }
+    .logo span {
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    h1 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+    p.sub {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin: 0 0 24px;
+    }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      margin-top: 16px;
+    }
+    input {
+      width: 100%;
+      background: var(--bg1);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    button {
+      width: 100%;
+      margin-top: 24px;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #04121a;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: default; }
+    .error {
+      margin-top: 14px;
+      color: var(--danger);
+      font-size: 0.85rem;
+      min-height: 1.1em;
+    }
+    a.back {
+      display: block;
+      margin-top: 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-decoration: none;
+    }
+    a.back:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <img src="/assets/logo.svg" alt="" />
+      <span>NIMBUS</span>
+    </div>
+    <h1>Accedi</h1>
+    <p class="sub">Resti connesso su questo dispositivo finché non fai logout.</p>
+    <form id="loginForm">
+      <label for="username">Utente</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <button id="submitBtn" type="submit">Accedi</button>
+      <div class="error" id="errorMsg"></div>
+    </form>
+    <a class="back" href="/">← Torna alla home</a>
+  </div>
+  <script>
+    const form = document.getElementById("loginForm");
+    const errorMsg = document.getElementById("errorMsg");
+    const submitBtn = document.getElementById("submitBtn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorMsg.textContent = "";
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Accesso...";
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          window.location.href = "/app";
+          return;
+        }
+        errorMsg.textContent = data.error || "Credenziali non valide.";
+      } catch (err) {
+        errorMsg.textContent = "Errore di rete, riprova.";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Accedi";
+      }
+    });
+  </script>
+</body>
+</html>

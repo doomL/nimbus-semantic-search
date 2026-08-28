@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -86,6 +88,7 @@ def _resolve_frontend_file(name: str) -> Path:
 FRONTEND_DIR = _resolve_frontend_dir()
 FRONTEND_INDEX = _resolve_frontend_file("index.html")
 FRONTEND_LANDING = _resolve_frontend_file("landing.html")
+FRONTEND_LOGIN = _resolve_frontend_file("login.html")
 _ASSETS_DIR = FRONTEND_DIR / "assets"
 
 _REPO_ROOT = FRONTEND_INDEX.parent.parent if FRONTEND_INDEX.parent.name == "frontend" else BASE_DIR
@@ -158,8 +161,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Path(os.environ["TORCH_HOME"]).mkdir(parents=True, exist_ok=True)
     init_db(db_path)
     logger.info("Database ready at %s", db_path)
-    if _basic_auth_credentials():
-        logger.info("HTTP Basic authentication is enabled (set NIMBUS_AUTH_*).")
+    if _auth_credentials():
+        logger.info("Login is enabled (set NIMBUS_AUTH_*); sessions last %s day(s).", _session_days())
     get_clip()
     logger.info("Startup complete.")
 
@@ -205,8 +208,11 @@ app = FastAPI(
 )
 
 
-def _basic_auth_credentials() -> tuple[str, str] | None:
-    """If both user and password are set, require HTTP Basic Auth on /app and API routes."""
+SESSION_COOKIE = "nimbus_session"
+
+
+def _auth_credentials() -> tuple[str, str] | None:
+    """If both user and password are set, require login on /app and API routes."""
     user = os.environ.get("NIMBUS_AUTH_USER", "").strip()
     password = os.environ.get("NIMBUS_AUTH_PASSWORD", "")
     if not user or not password:
@@ -214,13 +220,82 @@ def _basic_auth_credentials() -> tuple[str, str] | None:
     return (user, password)
 
 
-def _basic_auth_exempt_path(path: str) -> bool:
+def _session_secret() -> bytes:
     """
-    Public URLs that bypass Basic Auth: landing page, legal, landing assets, and
-    PWA bootstrap (browsers often fetch manifest / SW without Authorization).
-    /app and all API routes stay protected.
+    Key used to sign session cookies. Prefer an explicit NIMBUS_SESSION_SECRET
+    (survives container rebuilds); fall back to a key derived from the auth
+    password so logins still work if it isn't set, but a dedicated secret is
+    recommended (see .env.example).
     """
-    if path in ("/", "/LICENSE"):
+    secret = os.environ.get("NIMBUS_SESSION_SECRET", "").strip()
+    if secret:
+        return secret.encode("utf-8")
+    _, password = _auth_credentials() or ("", "nimbus-fallback")
+    return hashlib.sha256(f"nimbus-session:{password}".encode("utf-8")).digest()
+
+
+def _session_days() -> float:
+    try:
+        return max(0.1, float(os.environ.get("NIMBUS_SESSION_DAYS", "90")))
+    except ValueError:
+        return 90.0
+
+
+def _sign_session(username: str) -> str:
+    expires_at = int(time.time() + _session_days() * 86400)
+    payload = f"{username}:{expires_at}"
+    payload_b64 = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+    sig = hmac.new(_session_secret(), payload_b64.encode("ascii"), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_session(token: str | None) -> str | None:
+    """Return the logged-in username if the cookie is valid and unexpired, else None."""
+    creds = _auth_credentials()
+    if not token or creds is None:
+        return None
+    expected_user, _ = creds
+    try:
+        payload_b64, sig = token.split(".", 1)
+    except ValueError:
+        return None
+    expected_sig = hmac.new(_session_secret(), payload_b64.encode("ascii"), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected_sig):
+        return None
+    try:
+        padding = "=" * (-len(payload_b64) % 4)
+        payload = base64.urlsafe_b64decode(payload_b64 + padding).decode("utf-8")
+        username, expires_at_s = payload.rsplit(":", 1)
+        expires_at = int(expires_at_s)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    if time.time() > expires_at:
+        return None
+    if not secrets.compare_digest(username, expected_user):
+        return None
+    return username
+
+
+def _set_session_cookie(response: Response, username: str) -> None:
+    response.set_cookie(
+        SESSION_COOKIE,
+        _sign_session(username),
+        max_age=int(_session_days() * 86400),
+        httponly=True,
+        secure=os.environ.get("NIMBUS_COOKIE_SECURE", "1").strip() not in ("0", "false", "False"),
+        samesite="lax",
+        path="/",
+    )
+
+
+def _auth_exempt_path(path: str) -> bool:
+    """
+    Public URLs that bypass login: landing page, legal, landing assets, login
+    page/endpoint, and PWA bootstrap (browsers often fetch manifest / SW
+    without cookies attached yet). /app decides for itself whether to render
+    the app or the login form; all other API routes stay protected.
+    """
+    if path in ("/", "/LICENSE", "/app", "/login", "/logout", "/health"):
         return True
     if path in ("/assets/logo.svg", "/assets/logo-banner.svg"):
         return True
@@ -233,38 +308,21 @@ def _basic_auth_exempt_path(path: str) -> bool:
     return False
 
 
-class BasicAuthMiddleware(BaseHTTPMiddleware):
+class SessionAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        creds = _basic_auth_credentials()
-        if creds is None:
+        if _auth_credentials() is None:
             return await call_next(request)
 
-        if _basic_auth_exempt_path(request.url.path):
+        if _auth_exempt_path(request.url.path):
             return await call_next(request)
 
-        expected_user, expected_password = creds
-        auth = request.headers.get("Authorization")
-        if auth and auth.startswith("Basic "):
-            try:
-                raw = base64.b64decode(auth[6:].strip(), validate=True)
-                decoded = raw.decode("utf-8")
-            except (ValueError, UnicodeDecodeError):
-                decoded = ""
-            if ":" in decoded:
-                u, p = decoded.split(":", 1)
-                if len(u) == len(expected_user) and len(p) == len(expected_password):
-                    if secrets.compare_digest(u, expected_user) and secrets.compare_digest(
-                        p, expected_password
-                    ):
-                        return await call_next(request)
+        if _verify_session(request.cookies.get(SESSION_COOKIE)):
+            return await call_next(request)
 
-        return Response(
-            status_code=401,
-            headers={"WWW-Authenticate": 'Basic realm="Nimbus"'},
-        )
+        return JSONResponse({"error": "authentication required"}, status_code=401)
 
 
-app.add_middleware(BasicAuthMiddleware)
+app.add_middleware(SessionAuthMiddleware)
 
 
 def _env(name: str, default: str | None = None) -> str:
@@ -413,10 +471,53 @@ def serve_landing() -> FileResponse:
 
 
 @app.get("/app", response_class=FileResponse)
-def serve_app() -> FileResponse:
+def serve_app(request: Request) -> FileResponse:
+    creds = _auth_credentials()
+    if creds is not None and not _verify_session(request.cookies.get(SESSION_COOKIE)):
+        if not FRONTEND_LOGIN.is_file():
+            raise HTTPException(500, "frontend/login.html not found")
+        return FileResponse(FRONTEND_LOGIN)
     if not FRONTEND_INDEX.is_file():
         raise HTTPException(500, "frontend/index.html not found")
     return FileResponse(FRONTEND_INDEX)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.get("/login", response_class=FileResponse)
+def serve_login() -> FileResponse:
+    if not FRONTEND_LOGIN.is_file():
+        raise HTTPException(500, "frontend/login.html not found")
+    return FileResponse(FRONTEND_LOGIN)
+
+
+@app.post("/login")
+def do_login(body: LoginRequest) -> JSONResponse:
+    creds = _auth_credentials()
+    if creds is None:
+        return JSONResponse({"ok": True})
+    expected_user, expected_password = creds
+    user_ok = len(body.username) == len(expected_user) and secrets.compare_digest(
+        body.username, expected_user
+    )
+    password_ok = len(body.password) == len(expected_password) and secrets.compare_digest(
+        body.password, expected_password
+    )
+    if not (user_ok and password_ok):
+        return JSONResponse({"ok": False, "error": "Credenziali non valide"}, status_code=401)
+    resp = JSONResponse({"ok": True})
+    _set_session_cookie(resp, expected_user)
+    return resp
+
+
+@app.post("/logout")
+def do_logout() -> JSONResponse:
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(SESSION_COOKIE, path="/")
+    return resp
 
 
 @app.get("/LICENSE", response_class=FileResponse)
